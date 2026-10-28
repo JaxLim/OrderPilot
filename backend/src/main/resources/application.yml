@@ -46,6 +46,14 @@ spring:
       write-dates-as-timestamps: false
     time-zone: UTC
   ai:
+    model:
+      # only the chat model is used; don't create speech/image/embedding/moderation clients
+      audio:
+        speech: none
+        transcription: none
+      image: none
+      embedding: none
+      moderation: none
     openai:
       api-key: ${OPENAI_API_KEY:not-configured}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com}

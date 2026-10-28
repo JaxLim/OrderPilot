@@ -49,9 +49,12 @@ services:
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
       JWT_SECRET: ${JWT_SECRET:-docker-compose-demo-secret-change-me-0123456789}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      # Read from the git-ignored .env next to this file (or the shell). Only the backend receives the key;
+      # the frontend container never does.
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
+      AI_MODEL: ${AI_MODEL:-deepseek-chat}
+      AI_PROVIDER_NAME: ${AI_PROVIDER_NAME:-DeepSeek}
       CORS_ORIGINS: http://localhost:8081,http://localhost:5173
     ports: ["8080:8080"]
     depends_on:

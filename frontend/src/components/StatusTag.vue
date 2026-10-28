@@ -2,14 +2,16 @@
 import { computed } from 'vue'
 import type { OrderStatus } from '@/api/types'
 import { STATUS_META } from '@/utils/format'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{ status: OrderStatus }>()
+const { t } = useI18n()
 const meta = computed(() => STATUS_META[props.status])
 </script>
 
 <template>
   <span class="status" :style="{ '--c': meta.color }">
-    <i />{{ meta.label }}
+    <i />{{ t(`status.${status}`) }}
   </span>
 </template>
 

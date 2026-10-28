@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios'
 import { ElMessage } from 'element-plus'
 import type { ApiEnvelope } from './types'
+import { lang, t } from '@/i18n'
 
 export const TOKEN_KEY = 'orderpilot.token'
 
@@ -33,10 +34,24 @@ http.interceptors.response.use(
         location.href = `/login?redirect=${encodeURIComponent(location.pathname)}`
       }
     }
-    const message = body?.message ?? (status ? `Request failed (${status})` : 'Network error — is the backend running?')
-    return Promise.reject(new ApiError(body?.code ?? 'NETWORK', message, status))
+    const code = body?.code ?? 'NETWORK'
+    const message = localizeError(code, body?.message ?? (status ? `Request failed (${status})` : t('errors.NETWORK')))
+    return Promise.reject(new ApiError(code, message, status))
   },
 )
+
+/**
+ * Server messages are English and often carry specifics (SKU, quantities). In Chinese we show the translated
+ * reason for the stable error code and keep the specifics as detail.
+ */
+function localizeError(code: string, serverMessage: string): string {
+  if (lang.value !== 'zh') return serverMessage
+  const key = `errors.${code}`
+  const translated = t(key)
+  if (translated === key) return serverMessage
+  const detailed = ['VALIDATION_FAILED', 'INSUFFICIENT_STOCK', 'INVALID_STATE', 'PAYMENT_DECLINED', 'CONFLICT']
+  return detailed.includes(code) ? `${translated}（${serverMessage}）` : translated
+}
 
 async function unwrap<T>(p: Promise<{ data: ApiEnvelope<T> }>): Promise<T> {
   const res = await p

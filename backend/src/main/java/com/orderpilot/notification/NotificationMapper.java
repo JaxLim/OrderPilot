@@ -20,13 +20,14 @@ public interface NotificationMapper {
         private String level;
         private String title;
         private String content;
+        private String params;
         private Boolean readFlag;
         private LocalDateTime createdAt;
     }
 
     @Insert("""
-            INSERT INTO notification (tenant_id, type, level, title, content)
-            VALUES (#{tenantId}, #{type}, #{level}, #{title}, #{content})
+            INSERT INTO notification (tenant_id, type, level, title, content, params)
+            VALUES (#{tenantId}, #{type}, #{level}, #{title}, #{content}, #{params})
             """)
     void insert(Notification n);
 

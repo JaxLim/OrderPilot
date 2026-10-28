@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { Promotion } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { api, ApiError } from '@/api/http'
-import type { ChatReply } from '@/api/types'
+import type { AiStatus, ChatReply } from '@/api/types'
 import { useAuth } from '@/stores/auth'
+import { lang } from '@/i18n'
 
 interface Msg {
   role: 'user' | 'assistant'
@@ -15,26 +17,22 @@ interface Msg {
   error?: boolean
 }
 
+const { t, tm, rt } = useI18n()
 const auth = useAuth()
-const mode = ref<'llm' | 'offline' | null>(null)
+const status = ref<AiStatus | null>(null)
 const messages = ref<Msg[]>([])
 const input = ref('')
 const thinking = ref(false)
 const scroller = ref<HTMLElement>()
 
-const suggestions = [
-  'How is the business doing this week?',
-  'What are my top 5 products in the last 30 days?',
-  'Which products need restocking?',
-  'Show the order status breakdown for the last 7 days',
-  'What was our best day this month?',
-]
+const suggestions = computed(() => (tm('ai.suggestions') as unknown[]).map((s) => rt(s as never)))
+const isLlm = computed(() => status.value?.mode === 'llm')
 
 onMounted(async () => {
   try {
-    mode.value = (await api.get<{ mode: 'llm' | 'offline' }>('/ai/status')).mode
+    status.value = await api.get<AiStatus>('/ai/status')
   } catch {
-    mode.value = null
+    status.value = null
   }
 })
 
@@ -54,8 +52,7 @@ async function send(text?: string) {
   thinking.value = true
   scrollDown()
   try {
-    const r = await api.post<ChatReply>('/ai/chat', { message, history })
-    mode.value = r.mode
+    const r = await api.post<ChatReply>('/ai/chat', { message, history, lang: lang.value })
     messages.value.push({ role: 'assistant', content: r.reply, tools: r.toolsUsed, notice: r.notice })
   } catch (e) {
     messages.value.push({ role: 'assistant', content: e instanceof ApiError ? e.message : String(e), error: true })
@@ -66,7 +63,7 @@ async function send(text?: string) {
 }
 
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault()
     send()
   }
@@ -77,12 +74,12 @@ function onKey(e: KeyboardEvent) {
   <div class="page assistant">
     <div class="page-header">
       <div>
-        <h1>AI Copilot</h1>
-        <p>Ask about {{ auth.me?.tenant.name }}'s live data. Read-only, tenant-scoped tools — every number comes from the database.</p>
+        <h1>{{ t('ai.title') }}</h1>
+        <p>{{ t('ai.subtitle', { tenant: auth.me?.tenant.name ?? '' }) }}</p>
       </div>
-      <el-tooltip :content="mode === 'llm' ? 'Spring AI ChatClient with function calling' : 'No LLM key configured: the built-in analyst routes your question to the same tools'">
-        <el-tag :type="mode === 'llm' ? 'success' : 'info'" effect="light" round data-testid="ai-mode">
-          {{ mode === 'llm' ? 'LLM mode' : 'Offline analyst' }}
+      <el-tooltip v-if="status" :content="isLlm ? t('ai.llmTip', { provider: status.provider }) : t('ai.offlineTip')">
+        <el-tag :type="isLlm ? 'success' : 'info'" effect="light" round data-testid="ai-mode">
+          {{ isLlm ? t('ai.llmMode', { provider: status.provider, model: status.model }) : t('ai.offlineMode') }}
         </el-tag>
       </el-tooltip>
     </div>
@@ -91,7 +88,7 @@ function onKey(e: KeyboardEvent) {
       <div ref="scroller" class="messages">
         <div v-if="!messages.length" class="empty">
           <div class="spark">✦</div>
-          <h3>What would you like to know?</h3>
+          <h3>{{ t('ai.emptyTitle') }}</h3>
           <div class="sugs">
             <button v-for="s in suggestions" :key="s" class="sug" @click="send(s)">{{ s }}</button>
           </div>
@@ -101,8 +98,8 @@ function onKey(e: KeyboardEvent) {
             <div v-if="m.role === 'assistant'" class="markdown" v-html="render(m.content)" />
             <div v-else>{{ m.content }}</div>
             <div v-if="m.tools?.length" class="tools">
-              <span class="muted">Data from</span>
-              <el-tag v-for="t in m.tools" :key="t" size="small" effect="plain" class="mono">{{ t }}()</el-tag>
+              <span class="muted">{{ t('ai.dataFrom') }}</span>
+              <el-tag v-for="tool in m.tools" :key="tool" size="small" effect="plain" class="mono">{{ tool }}()</el-tag>
             </div>
             <div v-if="m.notice" class="notice">{{ m.notice }}</div>
           </div>
@@ -113,10 +110,9 @@ function onKey(e: KeyboardEvent) {
       </div>
       <div class="composer">
         <el-input v-model="input" type="textarea" :autosize="{ minRows: 1, maxRows: 5 }" resize="none"
-                  placeholder="Ask about revenue, best sellers, stock, a specific order…" data-testid="ai-input"
-                  @keydown="onKey" />
+                  :placeholder="t('ai.placeholder')" data-testid="ai-input" @keydown="onKey" />
         <el-button type="primary" :icon="Promotion" :loading="thinking" :disabled="!input.trim()" data-testid="ai-send"
-                   @click="send()">Send</el-button>
+                   @click="send()">{{ t('ai.send') }}</el-button>
       </div>
     </div>
   </div>

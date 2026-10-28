@@ -20,6 +20,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "orderpilot.demo.seed=false",
+        "AI_API_KEY=", // tests never call a real LLM, even if a developer has a .env with a key
         "orderpilot.order.payment-timeout=4s",
         "orderpilot.order.sweep-interval-ms=3600000",
         "orderpilot.outbox.poll-interval-ms=200",

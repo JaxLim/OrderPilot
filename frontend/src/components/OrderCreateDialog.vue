@@ -5,6 +5,9 @@ import { ElMessage } from 'element-plus'
 import { api, newIdempotencyKey, notifyError } from '@/api/http'
 import type { OrderDetail, Page, Product } from '@/api/types'
 import { fmtMoney } from '@/utils/format'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const visible = defineModel<boolean>({ required: true })
 const emit = defineEmits<{ created: [OrderDetail] }>()
@@ -51,7 +54,7 @@ async function submit() {
       remark: form.remark || undefined,
       items: form.lines.filter((l) => l.productId).map((l) => ({ productId: l.productId, quantity: l.quantity })),
     }, { 'Idempotency-Key': idempotencyKey })
-    ElMessage.success(`Order ${detail.order.orderNo} created — stock reserved`)
+    ElMessage.success(t('orderForm.created', { no: detail.order.orderNo }))
     visible.value = false
     emit('created', detail)
   } catch (e) {
@@ -63,29 +66,29 @@ async function submit() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" title="New order" width="720px" destroy-on-close>
+  <el-dialog v-model="visible" :title="t('orderForm.title')" width="720px" destroy-on-close>
     <el-form label-position="top" data-testid="order-form">
       <div class="two">
-        <el-form-item label="Customer name" required>
-          <el-input v-model="form.customerName" placeholder="e.g. Olivia Chen" data-testid="order-customer" />
+        <el-form-item :label="t('orderForm.customerName')" required>
+          <el-input v-model="form.customerName" data-testid="order-customer" />
         </el-form-item>
-        <el-form-item label="Customer email">
+        <el-form-item :label="t('orderForm.customerEmail')">
           <el-input v-model="form.customerEmail" placeholder="olivia@example.com" />
         </el-form-item>
       </div>
-      <el-form-item label="Shipping address">
-        <el-input v-model="form.shippingAddress" placeholder="Street, City, State" />
+      <el-form-item :label="t('orderForm.shippingAddress')">
+        <el-input v-model="form.shippingAddress" :placeholder="t('orderForm.addressPlaceholder')" />
       </el-form-item>
 
-      <div class="lines-head">Items</div>
+      <div class="lines-head">{{ t('orderForm.items') }}</div>
       <div v-for="(line, i) in form.lines" :key="i" class="line">
-        <el-select v-model="line.productId" filterable placeholder="Search product or SKU" class="prod"
+        <el-select v-model="line.productId" filterable :placeholder="t('orderForm.productPlaceholder')" class="prod"
                    :data-testid="`order-line-product-${i}`">
           <el-option v-for="p in products" :key="p.id" :value="p.id" :label="`${p.name} (${p.sku})`"
                      :disabled="p.available === 0">
             <div class="opt">
               <span>{{ p.name }} <span class="muted mono">{{ p.sku }}</span></span>
-              <span :class="p.lowStock ? 'warn' : 'muted'">{{ p.available }} in stock · {{ fmtMoney(p.price) }}</span>
+              <span :class="p.lowStock ? 'warn' : 'muted'">{{ t('orderForm.inStock', { n: p.available }) }} · {{ fmtMoney(p.price) }}</span>
             </div>
           </el-option>
         </el-select>
@@ -97,23 +100,23 @@ async function submit() {
         <el-button :icon="Delete" text :disabled="form.lines.length === 1" @click="form.lines.splice(i, 1)" />
       </div>
       <el-button :icon="Plus" text type="primary" @click="form.lines.push({ productId: undefined, quantity: 1 })">
-        Add item
+        {{ t('orderForm.addItem') }}
       </el-button>
-      <el-form-item label="Internal note" class="mt">
-        <el-input v-model="form.remark" placeholder="Optional" />
+      <el-form-item :label="t('orderForm.note')" class="mt">
+        <el-input v-model="form.remark" :placeholder="t('common.optional')" />
       </el-form-item>
     </el-form>
     <template #footer>
       <div class="foot">
         <div>
-          <span class="muted">Total</span>
+          <span class="muted">{{ t('common.total') }}</span>
           <b class="total num">{{ fmtMoney(total) }}</b>
-          <span class="muted tiny">Prices are confirmed by the server</span>
+          <span class="muted tiny">{{ t('orderForm.serverPrices') }}</span>
         </div>
         <div>
-          <el-button @click="visible = false">Cancel</el-button>
+          <el-button @click="visible = false">{{ t('common.cancel') }}</el-button>
           <el-button type="primary" :loading="saving" :disabled="!valid" data-testid="order-submit" @click="submit">
-            Create order
+            {{ t('orderForm.create') }}
           </el-button>
         </div>
       </div>

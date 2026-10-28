@@ -5,7 +5,11 @@ dist/
 .idea/
 .vscode/
 *.iml
+# secrets: any .env anywhere in the repo, except the template
 .env
+.env.*
+**/.env
+!.env.example
 frontend/test-results/
 frontend/playwright-report/
 e2e/test-results/

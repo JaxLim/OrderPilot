@@ -134,6 +134,10 @@ class OrderLifecycleIT extends IntegrationTest {
         assertThat(reply.path("mode").asText()).isEqualTo("offline");
         assertThat(reply.path("toolsUsed").toString()).contains("getLowStockProducts");
         assertThat(reply.path("reply").asText()).contains("INS-1");
+
+        JsonNode zh = api.post("/api/ai/chat", t.token(), Map.of("message", "哪些商品需要补货？", "lang", "zh")).data();
+        assertThat(zh.path("toolsUsed").toString()).contains("getLowStockProducts");
+        assertThat(zh.path("reply").asText()).contains("低库存商品").contains("INS-1");
     }
 
     private static String status(Api api, Tenant t, long order) {

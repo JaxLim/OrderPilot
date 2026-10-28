@@ -3,6 +3,8 @@ import { expect, test, type Page } from '@playwright/test'
 const PASSWORD = 'Passw0rd!'
 
 async function login(page: Page, email: string) {
+  // pin English so text assertions are stable regardless of the machine's locale
+  await page.addInitScript(() => localStorage.setItem('orderpilot.lang', 'en'))
   await page.goto('/login')
   await page.getByTestId('login-email').fill(email)
   await page.getByTestId('login-password').fill(PASSWORD)
@@ -35,7 +37,7 @@ test('staff creates an order, pays it and ships it', async ({ page }) => {
   await expect(drawer.getByTestId('order-status')).toHaveText(/Awaiting payment/)
   await drawer.getByTestId('pay-button').click()
   await expect(drawer.getByTestId('order-status')).toHaveText(/Paid/)
-  await expect(drawer.getByText('SUCCEEDED')).toBeVisible()
+  await expect(drawer.locator('[data-status="SUCCEEDED"]')).toBeVisible()
 
   await drawer.getByTestId('ship-button').click()
   await expect(drawer.getByTestId('order-status')).toHaveText(/Shipped/)
@@ -65,10 +67,38 @@ test('tenants are isolated in the UI', async ({ page }) => {
 })
 
 test('AI copilot answers from live data with tool calls', async ({ page }) => {
+  test.setTimeout(90_000) // a real LLM (DeepSeek) may take a while
   await login(page, 'manager@acme.test')
   await page.goto('/assistant')
   await page.getByTestId('ai-input').fill('Which products need restocking?')
   await page.getByTestId('ai-send').click()
-  await expect(page.getByText('getLowStockProducts()')).toBeVisible()
-  await expect(page.locator('.markdown table')).toBeVisible()
+  // works in both modes: the offline analyst and the LLM both answer through the server-side tools
+  const answer = page.locator('.msg.assistant .bubble').last()
+  await expect(answer.locator('.tools')).toBeVisible({ timeout: 60_000 })
+  await expect(answer.locator('.markdown')).not.toBeEmpty()
+})
+
+test('switches between English and Chinese', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem('init')) {
+      localStorage.setItem('orderpilot.lang', 'en')
+      sessionStorage.setItem('init', '1')
+    }
+  })
+  await page.goto('/login')
+  await expect(page.getByTestId('login-submit')).toHaveText('Sign in')
+  await page.getByTestId('lang-zh').click()
+  await expect(page.getByTestId('login-submit')).toHaveText('登录')
+
+  await page.getByTestId('login-submit').click()
+  await expect(page.getByRole('heading', { name: '数据看板' })).toBeVisible()
+  await expect(page.getByTestId('kpi-revenue')).toContainText('营收')
+  await expect(page).toHaveTitle(/数据看板/)
+
+  // the choice survives a reload
+  await page.reload()
+  await expect(page.getByRole('heading', { name: '数据看板' })).toBeVisible()
+
+  await page.getByTestId('lang-en').click()
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
 })

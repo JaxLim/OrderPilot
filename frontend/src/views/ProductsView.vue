@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { api, notifyError } from '@/api/http'
 import type { Page, Product } from '@/api/types'
 import { useAuth } from '@/stores/auth'
 import { fmtMoney } from '@/utils/format'
 
+const { t } = useI18n()
 const auth = useAuth()
 const rows = ref<Product[]>([])
 const total = ref(0)
@@ -20,12 +22,17 @@ const editing = ref<Product | null>(null)
 const saving = ref(false)
 const formRef = ref<FormInstance>()
 const form = reactive({ sku: '', name: '', category: '', description: '', price: 0, cost: 0, lowStockThreshold: 10, initialStock: 0 })
-const rules: FormRules = {
-  sku: [{ required: true, pattern: /^[A-Za-z0-9._-]{2,64}$/, message: 'Letters, digits, . _ -' }],
-  name: [{ required: true, message: 'Name is required' }],
-  category: [{ required: true, message: 'Category is required' }],
-  price: [{ required: true, type: 'number', min: 0.01, message: 'Price must be > 0' }],
-}
+const rules = computed<FormRules>(() => ({
+  sku: [{ required: true, pattern: /^[A-Za-z0-9._-]{2,64}$/, message: t('products.rules.sku') }],
+  name: [{ required: true, message: t('products.rules.name') }],
+  category: [{ required: true, message: t('products.rules.category') }],
+  price: [{ required: true, type: 'number', min: 0.01, message: t('products.rules.price') }],
+}))
+const statusOptions = computed(() => [
+  { label: t('products.active'), value: 'ACTIVE' },
+  { label: t('products.archived'), value: 'ARCHIVED' },
+  { label: t('common.all'), value: '' },
+])
 
 async function load() {
   loading.value = true
@@ -45,10 +52,10 @@ async function load() {
 }
 onMounted(load)
 watch(() => [q.category, q.status, q.page, q.size], load)
-let t: number | undefined
+let timer: number | undefined
 watch(() => q.keyword, () => {
-  window.clearTimeout(t)
-  t = window.setTimeout(() => { q.page = 1; load() }, 300)
+  window.clearTimeout(timer)
+  timer = window.setTimeout(() => { q.page = 1; load() }, 300)
 })
 
 function openCreate() {
@@ -70,10 +77,10 @@ async function save() {
     if (editing.value) {
       const { name, category, description, price, cost, lowStockThreshold } = form
       await api.put(`/products/${editing.value.id}`, { name, category, description, price, cost, lowStockThreshold })
-      ElMessage.success('Product updated — cache invalidated after commit')
+      ElMessage.success(t('products.updated'))
     } else {
       await api.post('/products', form)
-      ElMessage.success('Product created')
+      ElMessage.success(t('products.created'))
     }
     dialog.value = false
     load()
@@ -100,25 +107,25 @@ const margin = (p: Product) => (p.price > 0 ? Math.round(((p.price - p.cost) / p
   <div class="page">
     <div class="page-header">
       <div>
-        <h1>Products</h1>
-        <p>Catalog data is served through a Redis cache-aside layer; stock is always live.</p>
+        <h1>{{ t('products.title') }}</h1>
+        <p>{{ t('products.subtitle') }}</p>
       </div>
       <el-button v-if="auth.can('product:write')" type="primary" :icon="Plus" data-testid="new-product" @click="openCreate">
-        New product
+        {{ t('products.new') }}
       </el-button>
     </div>
     <div class="card">
       <div class="toolbar">
-        <el-input v-model="q.keyword" :prefix-icon="Search" placeholder="Search name or SKU" clearable style="width: 260px" />
-        <el-select v-model="q.category" placeholder="All categories" clearable style="width: 180px">
+        <el-input v-model="q.keyword" :prefix-icon="Search" :placeholder="t('products.searchPlaceholder')" clearable style="width: 260px" />
+        <el-select v-model="q.category" :placeholder="t('products.allCategories')" clearable style="width: 180px">
           <el-option v-for="c in categories" :key="c" :value="c" :label="c" />
         </el-select>
-        <el-segmented v-model="q.status" :options="[{ label: 'Active', value: 'ACTIVE' }, { label: 'Archived', value: 'ARCHIVED' }, { label: 'All', value: '' }]" />
+        <el-segmented v-model="q.status" :options="statusOptions" />
         <span class="spacer" />
-        <span class="muted">{{ total }} products</span>
+        <span class="muted">{{ t('products.count', { n: total }) }}</span>
       </div>
       <el-table :data="rows" v-loading="loading" row-key="id">
-        <el-table-column label="Product" min-width="260">
+        <el-table-column :label="t('products.colProduct')" min-width="260">
           <template #default="{ row }">
             <div class="prod">
               <div class="thumb">{{ row.category.slice(0, 2).toUpperCase() }}</div>
@@ -129,29 +136,31 @@ const margin = (p: Product) => (p.price > 0 ? Math.round(((p.price - p.cost) / p
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="Category" prop="category" width="140" />
-        <el-table-column label="Price" width="110" align="right">
+        <el-table-column :label="t('products.colCategory')" prop="category" width="140" />
+        <el-table-column :label="t('products.colPrice')" width="110" align="right">
           <template #default="{ row }"><b class="num">{{ fmtMoney(row.price) }}</b></template>
         </el-table-column>
-        <el-table-column label="Margin" width="90" align="right">
+        <el-table-column :label="t('products.colMargin')" width="90" align="right">
           <template #default="{ row }"><span class="num muted">{{ margin(row) }}%</span></template>
         </el-table-column>
-        <el-table-column label="Stock" width="150">
+        <el-table-column :label="t('products.colStock')" width="170">
           <template #default="{ row }">
-            <el-tag v-if="row.lowStock" type="warning" effect="light" round>{{ row.available }} · low</el-tag>
+            <el-tag v-if="row.lowStock" type="warning" effect="light" round>{{ row.available }} · {{ t('products.low') }}</el-tag>
             <span v-else class="num">{{ row.available }}</span>
-            <span v-if="row.reserved" class="muted small"> +{{ row.reserved }} reserved</span>
+            <div v-if="row.reserved" class="muted small">{{ t('products.reserved', { n: row.reserved }) }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="Status" width="110">
+        <el-table-column :label="t('products.colStatus')" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" effect="plain" size="small">{{ row.status }}</el-tag>
+            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" effect="plain" size="small">
+              {{ t(`products.statusLabel.${row.status}`) }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column v-if="auth.can('product:write')" width="150" align="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">Edit</el-button>
-            <el-button link @click="toggle(row)">{{ row.status === 'ACTIVE' ? 'Archive' : 'Restore' }}</el-button>
+            <el-button link type="primary" @click="openEdit(row)">{{ t('common.edit') }}</el-button>
+            <el-button link @click="toggle(row)">{{ row.status === 'ACTIVE' ? t('products.archive') : t('products.restore') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -160,28 +169,28 @@ const margin = (p: Product) => (p.price > 0 ? Math.round(((p.price - p.cost) / p
       </div>
     </div>
 
-    <el-dialog v-model="dialog" :title="editing ? `Edit ${editing.sku}` : 'New product'" width="620px">
+    <el-dialog v-model="dialog" :title="editing ? t('products.editTitle', { sku: editing.sku }) : t('products.new')" width="620px">
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
         <div class="two">
-          <el-form-item label="SKU" prop="sku"><el-input v-model="form.sku" :disabled="!!editing" data-testid="product-sku" /></el-form-item>
-          <el-form-item label="Category" prop="category">
-            <el-select v-model="form.category" filterable allow-create default-first-option placeholder="Pick or type">
+          <el-form-item :label="t('products.sku')" prop="sku"><el-input v-model="form.sku" :disabled="!!editing" data-testid="product-sku" /></el-form-item>
+          <el-form-item :label="t('products.category')" prop="category">
+            <el-select v-model="form.category" filterable allow-create default-first-option :placeholder="t('products.categoryPlaceholder')">
               <el-option v-for="c in categories" :key="c" :value="c" :label="c" />
             </el-select>
           </el-form-item>
         </div>
-        <el-form-item label="Name" prop="name"><el-input v-model="form.name" data-testid="product-name" /></el-form-item>
-        <el-form-item label="Description"><el-input v-model="form.description" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item :label="t('products.name')" prop="name"><el-input v-model="form.name" data-testid="product-name" /></el-form-item>
+        <el-form-item :label="t('products.description')"><el-input v-model="form.description" type="textarea" :rows="2" /></el-form-item>
         <div class="three">
-          <el-form-item label="Price (USD)" prop="price"><el-input-number v-model="form.price" :min="0" :precision="2" :step="1" data-testid="product-price" /></el-form-item>
-          <el-form-item label="Unit cost"><el-input-number v-model="form.cost" :min="0" :precision="2" /></el-form-item>
-          <el-form-item label="Low-stock alert at"><el-input-number v-model="form.lowStockThreshold" :min="0" /></el-form-item>
+          <el-form-item :label="t('products.price')" prop="price"><el-input-number v-model="form.price" :min="0" :precision="2" :step="1" data-testid="product-price" /></el-form-item>
+          <el-form-item :label="t('products.cost')"><el-input-number v-model="form.cost" :min="0" :precision="2" /></el-form-item>
+          <el-form-item :label="t('products.threshold')"><el-input-number v-model="form.lowStockThreshold" :min="0" /></el-form-item>
         </div>
-        <el-form-item v-if="!editing" label="Opening stock"><el-input-number v-model="form.initialStock" :min="0" data-testid="product-stock" /></el-form-item>
+        <el-form-item v-if="!editing" :label="t('products.openingStock')"><el-input-number v-model="form.initialStock" :min="0" data-testid="product-stock" /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialog = false">Cancel</el-button>
-        <el-button type="primary" :loading="saving" data-testid="product-save" @click="save">Save</el-button>
+        <el-button @click="dialog = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" data-testid="product-save" @click="save">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </div>

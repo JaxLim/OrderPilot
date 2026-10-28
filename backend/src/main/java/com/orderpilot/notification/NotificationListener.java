@@ -23,11 +23,14 @@ public class NotificationListener {
     private final NotificationMapper mapper;
     private final ConsumerDeduplicator dedup;
     private final TransactionTemplate tx;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
-    public NotificationListener(NotificationMapper mapper, ConsumerDeduplicator dedup, TransactionTemplate tx) {
+    public NotificationListener(NotificationMapper mapper, ConsumerDeduplicator dedup, TransactionTemplate tx,
+                                com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.mapper = mapper;
         this.dedup = dedup;
         this.tx = tx;
+        this.objectMapper = objectMapper;
     }
 
     @RabbitListener(queues = RabbitConfig.NOTIFICATION_QUEUE)
@@ -38,9 +41,19 @@ public class NotificationListener {
             }
             Notification n = toNotification(event);
             if (n != null) {
+                n.setParams(paramsJson(event));
                 mapper.insert(n);
             }
         }));
+    }
+
+    /** The event payload (minus ids) lets the UI render the notification in any language. */
+    private String paramsJson(EventEnvelope e) {
+        try {
+            return objectMapper.writeValueAsString(e.payload());
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            return null;
+        }
     }
 
     static Notification toNotification(EventEnvelope e) {

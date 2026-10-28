@@ -5,6 +5,9 @@ server:
 spring:
   application:
     name: orderpilot
+  config:
+    # Local dev convenience: read secrets from a git-ignored .env (repo root or backend/). In Docker they come from env vars.
+    import: "optional:file:./.env[.properties],optional:file:../.env[.properties]"
   autoconfigure:
     # JWT-only authentication: no in-memory default user
     exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
@@ -54,12 +57,14 @@ spring:
       image: none
       embedding: none
       moderation: none
+    # DeepSeek (or any OpenAI-compatible provider) through Spring AI's OpenAI client.
+    # The key is never written here: it is read from the AI_API_KEY environment variable / .env.
     openai:
-      api-key: ${OPENAI_API_KEY:not-configured}
-      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      api-key: ${AI_API_KEY:not-configured}
+      base-url: ${AI_BASE_URL:https://api.deepseek.com}
       chat:
         options:
-          model: ${OPENAI_MODEL:gpt-4o-mini}
+          model: ${AI_MODEL:deepseek-chat}
           temperature: 0.2
 
 mybatis:
@@ -88,8 +93,10 @@ orderpilot:
     batch-size: 50
     max-attempts: 10
   ai:
-    # LLM mode is used when an API key is configured; otherwise the built-in offline analyst answers.
-    api-key: ${OPENAI_API_KEY:}
+    # LLM mode is switched on by AiKeyEnvironmentPostProcessor when AI_API_KEY is non-blank;
+    # otherwise the built-in offline analyst answers. These two values are shown in the UI (never the key).
+    provider: ${AI_PROVIDER_NAME:DeepSeek}
+    model: ${AI_MODEL:deepseek-chat}
   demo:
     seed: ${DEMO_SEED:true}
   cors:

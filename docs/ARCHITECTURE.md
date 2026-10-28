@@ -140,6 +140,29 @@ methods are read-only queries bound to the caller's tenant. The response reports
 provenance). Per-user rate limiting protects cost. If no API key is set or the provider fails, `OfflineAnalyst` routes the
 question by intent to the same tools and renders Markdown — so the feature always demos and never invents data.
 
+Provider: DeepSeek (`deepseek-chat`) via Spring AI's OpenAI client (`AI_BASE_URL=https://api.deepseek.com`); any
+OpenAI-compatible API works by changing `AI_BASE_URL` / `AI_MODEL`.
+
+Secret handling: `AI_API_KEY` comes only from the environment (Docker Compose reads the git-ignored `.env`; local
+`mvn spring-boot:run` imports `../.env` via `spring.config.import`). `AiKeyEnvironmentPostProcessor` decides at startup
+whether LLM mode is on and substitutes a placeholder for a blank key (Spring AI refuses to start with an empty one). The key
+never reaches the frontend (`/api/ai/status` exposes mode/provider/model only) and provider errors are logged through a
+redactor that masks `sk-…` tokens.
+
+The chat request carries the UI language (`lang: en|zh`); the system prompt tells the model to answer in Simplified Chinese
+when `zh`, and the offline analyst has full Chinese templates and recognises Chinese questions (补货, 热销, 营收, …).
+
+## 11. Internationalisation (English / 简体中文)
+
+- Frontend: `vue-i18n` (composition API) with `src/i18n/en.ts` and `zh.ts` (`zh` is typed as `typeof en`, so a missing key
+  fails the type-check). The language toggle updates vue-i18n, Element Plus's locale (`el-config-provider`), dayjs (relative
+  times, weekday names) and the document title; the choice is stored in `localStorage` and defaults to the browser language.
+- API errors: the server returns a stable `code` plus an English message. In Chinese the UI shows the translated reason for
+  the code and keeps the server's specifics (SKU, quantities) as detail.
+- Notifications store their event payload in `notification.params` (migration V2), so the bell renders them in the viewer's
+  language instead of the English text written at consume time.
+- Business data (product names, customer names) is shown as entered. Currency stays USD in both languages.
+
 ## 10. Data model
 
 `tenant`, `app_user`, `product`, `inventory`, `inventory_movement`, `sales_order`, `order_item`, `payment`, `outbox_event`,

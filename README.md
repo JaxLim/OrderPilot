@@ -21,6 +21,10 @@ with reliable RabbitMQ delivery, delayed order cancellation, Redis caching, and 
 | AI that doesn't hallucinate numbers | Spring AI `ChatClient` with read-only, server-side tenant-bound `@Tool`s; deterministic offline analyst when no key is configured | `OrderLifecycleIT.dashboardAndAssistantReflectRealData`, Playwright |
 
 <table><tr>
+<td><img src="docs/screenshots/login.png" alt="Sign in"/></td>
+<td><img src="docs/screenshots/orders-zh.png" alt="订单详情（中文界面）"/></td>
+<td><img src="docs/screenshots/assistant-zh.png" alt="AI 助手（DeepSeek）"/></td>
+</tr><tr>
 <td><img src="docs/screenshots/orders.png" alt="Orders with detail drawer"/></td>
 <td><img src="docs/screenshots/inventory.png" alt="Inventory levels"/></td>
 <td><img src="docs/screenshots/assistant.png" alt="AI Copilot"/></td>
@@ -28,8 +32,8 @@ with reliable RabbitMQ delivery, delayed order cancellation, Redis caching, and 
 
 ## Tech stack
 
-- **Backend:** Java 21, Spring Boot 3.5, Spring Security (JWT, method security), MyBatis, MySQL 8.4 + Flyway, Redis 7, RabbitMQ 3, Spring AI 1.1 (OpenAI-compatible), springdoc OpenAPI
-- **Frontend:** Vue 3 + TypeScript, Vite, Element Plus, Pinia, Vue Router, ECharts
+- **Backend:** Java 21, Spring Boot 3.5, Spring Security (JWT, method security), MyBatis, MySQL 8.4 + Flyway, Redis 7, RabbitMQ 3, Spring AI 1.1 + DeepSeek (OpenAI-compatible), springdoc OpenAPI
+- **Frontend:** Vue 3 + TypeScript, Vite, Element Plus, Pinia, Vue Router, vue-i18n (English / 简体中文), ECharts
 - **Testing:** JUnit 5 + Testcontainers (real MySQL/Redis/RabbitMQ), Playwright E2E
 - **DevOps:** Docker multi-stage builds, Docker Compose, nginx, GitHub Actions
 
@@ -52,13 +56,38 @@ Open **http://localhost:8081** and sign in with a demo account (password `Passw0
 Other endpoints: API `http://localhost:8080/api`, Swagger UI `http://localhost:8080/swagger-ui.html`,
 RabbitMQ console `http://localhost:15672` (guest/guest).
 
-To enable the LLM copilot, set an OpenAI-compatible key before starting (works with OpenAI, DeepSeek, etc.):
+The UI is available in **English and 简体中文**. Switch with the EN / 中文 toggle (login page and top bar); the choice is
+remembered per browser.
+
+### AI copilot (DeepSeek)
+
+The copilot uses DeepSeek through Spring AI's OpenAI-compatible client. Configure it with environment variables — never in
+source or config files:
 
 ```bash
-OPENAI_API_KEY=sk-... OPENAI_BASE_URL=https://api.openai.com OPENAI_MODEL=gpt-4o-mini docker compose up -d --build
+cp .env.example .env          # .env is git-ignored
+# edit .env and set AI_API_KEY=<your DeepSeek key>
+docker compose up -d --build  # Compose reads .env and passes the key to the backend container only
 ```
 
-Without a key the copilot runs in **offline analyst** mode: same tools, same real data, deterministic answers.
+| Variable | Default | Purpose |
+|---|---|---|
+| `AI_API_KEY` | *(empty)* | DeepSeek API key. Empty → offline analyst mode |
+| `AI_BASE_URL` | `https://api.deepseek.com` | Any OpenAI-compatible endpoint |
+| `AI_MODEL` | `deepseek-chat` | Model name |
+| `AI_PROVIDER_NAME` | `DeepSeek` | Label shown in the UI |
+
+How the key is protected:
+
+- Only the backend reads it. The browser calls `/api/ai/chat`, and `/api/ai/status` returns just the mode, provider and model.
+- It's never committed: `.env` / `.env.*` are git-ignored (only `.env.example` with placeholders is tracked) and excluded from
+  Docker build contexts.
+- It's never logged: the startup log prints the provider and model only, and provider errors are logged through a redactor
+  that masks `sk-…` tokens (unit-tested).
+- Tests force `AI_API_KEY=` so CI and `mvn test` never call the real API.
+
+Without a key the copilot runs in **offline analyst** mode: same tools, same real data, deterministic answers in English or
+Chinese.
 
 ## Local development
 
@@ -66,15 +95,15 @@ Prerequisites: JDK 21, Maven 3.9, Node 22+, Docker.
 
 ```bash
 docker compose up -d mysql redis rabbitmq        # infra (MySQL on :3307)
-cd backend && mvn spring-boot:run                # API on :8080, seeds demo data on first start
+cd backend && mvn spring-boot:run                # API on :8080, seeds demo data; reads AI_* from ../.env
 cd frontend && npm install && npm run dev        # UI on :5173 (proxies /api to :8080)
 ```
 
 ## Tests
 
 ```bash
-cd backend && mvn verify                         # 28 tests: unit + Testcontainers integration (needs Docker)
-cd frontend && npx playwright install chromium && npm run e2e   # 5 E2E tests against a running stack
+cd backend && mvn verify                         # 31 tests: unit + Testcontainers integration (needs Docker)
+cd frontend && npx playwright install chromium && npm run e2e   # 6 E2E tests against a running stack
 E2E_BASE_URL=http://localhost:8081 npm run e2e   # ...or against the Docker stack
 ```
 

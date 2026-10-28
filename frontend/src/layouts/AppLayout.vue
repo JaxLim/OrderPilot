@@ -6,25 +6,28 @@ import {
 } from '@element-plus/icons-vue'
 import { useAuth } from '@/stores/auth'
 import NotificationBell from '@/components/NotificationBell.vue'
+import LangSwitch from '@/components/LangSwitch.vue'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const auth = useAuth()
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 
 const nav = [
-  { section: 'Overview' },
-  { to: '/dashboard', label: 'Dashboard', icon: DataAnalysis, perm: 'report:read' },
-  { to: '/assistant', label: 'AI Copilot', icon: ChatDotRound, perm: 'ai:use', badge: 'AI' },
-  { section: 'Commerce' },
-  { to: '/orders', label: 'Orders', icon: Document, perm: 'order:read' },
-  { to: '/payments', label: 'Payments', icon: Coin, perm: 'order:read' },
-  { section: 'Catalog' },
-  { to: '/products', label: 'Products', icon: Goods, perm: 'product:read' },
-  { to: '/inventory', label: 'Inventory', icon: Box, perm: 'inventory:read' },
-  { section: 'Workspace' },
-  { to: '/team', label: 'Team', icon: User, perm: 'user:manage' },
-  { to: '/activity', label: 'Activity', icon: Histogram, perm: 'audit:read' },
+  { section: 'nav.overview' },
+  { to: '/dashboard', label: 'nav.dashboard', icon: DataAnalysis, perm: 'report:read' },
+  { to: '/assistant', label: 'nav.assistant', icon: ChatDotRound, perm: 'ai:use', badge: 'AI' },
+  { section: 'nav.commerce' },
+  { to: '/orders', label: 'nav.orders', icon: Document, perm: 'order:read' },
+  { to: '/payments', label: 'nav.payments', icon: Coin, perm: 'order:read' },
+  { section: 'nav.catalog' },
+  { to: '/products', label: 'nav.products', icon: Goods, perm: 'product:read' },
+  { to: '/inventory', label: 'nav.inventory', icon: Box, perm: 'inventory:read' },
+  { section: 'nav.workspace' },
+  { to: '/team', label: 'nav.team', icon: User, perm: 'user:manage' },
+  { to: '/activity', label: 'nav.activity', icon: Histogram, perm: 'audit:read' },
 ] as const
 
 const visibleNav = computed(() => {
@@ -61,18 +64,18 @@ async function logout() {
       </div>
       <nav>
         <template v-for="(item, i) in visibleNav" :key="i">
-          <div v-if="'section' in item" class="section">{{ collapsed ? '' : item.section }}</div>
+          <div v-if="'section' in item" class="section">{{ collapsed ? '' : t(item.section) }}</div>
           <router-link v-else :to="item.to" class="nav-item" :class="{ active: route.path.startsWith(item.to) }"
-                       :title="item.label">
+                       :title="t(item.label)">
             <el-icon :size="18"><component :is="item.icon" /></el-icon>
-            <span v-if="!collapsed" class="label">{{ item.label }}</span>
+            <span v-if="!collapsed" class="label">{{ t(item.label) }}</span>
             <span v-if="!collapsed && 'badge' in item" class="badge">{{ item.badge }}</span>
           </router-link>
         </template>
       </nav>
       <div v-if="!collapsed" class="tenant-card">
         <div class="tenant-name">{{ auth.me?.tenant.name }}</div>
-        <div class="tenant-plan">{{ auth.me?.tenant.plan }} plan · {{ auth.me?.tenant.code }}</div>
+        <div class="tenant-plan">{{ t('nav.plan', { plan: auth.me?.tenant.plan }) }} · {{ auth.me?.tenant.code }}</div>
       </div>
     </aside>
 
@@ -81,22 +84,23 @@ async function logout() {
         <div class="crumb">
           <span class="muted">{{ auth.me?.tenant.name }}</span>
           <span class="sep">/</span>
-          <span>{{ route.meta.title }}</span>
+          <span>{{ route.meta.title ? t(route.meta.title as string) : '' }}</span>
         </div>
         <div class="actions">
+          <LangSwitch />
           <NotificationBell />
           <el-dropdown trigger="click">
             <div class="user" data-testid="user-menu">
               <div class="avatar">{{ initials }}</div>
               <div class="who">
                 <div class="name">{{ auth.me?.displayName }}</div>
-                <div class="role">{{ auth.me?.role }}</div>
+                <div class="role">{{ auth.me ? t(`roles.${auth.me.role}`) : '' }}</div>
               </div>
             </div>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item disabled>{{ auth.me?.email }}</el-dropdown-item>
-                <el-dropdown-item divided :icon="SwitchButton" @click="logout">Sign out</el-dropdown-item>
+                <el-dropdown-item divided :icon="SwitchButton" @click="logout">{{ t('common.signOut') }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>

@@ -193,10 +193,12 @@ public class DemoDataSeeder implements ApplicationRunner {
             P p = byId.get(pid);
             if (p.stock() <= p.threshold()) {
                 jdbc.update("""
-                        INSERT INTO notification (tenant_id, type, level, title, content, created_at)
-                        VALUES (?, 'inventory.low_stock', 'WARNING', ?, ?, ?)""",
+                        INSERT INTO notification (tenant_id, type, level, title, content, params, created_at)
+                        VALUES (?, 'inventory.low_stock', 'WARNING', ?, ?, JSON_OBJECT('sku', ?, 'productName', ?,
+                                'available', ?, 'threshold', ?), ?)""",
                         tenantId, "Low stock: " + p.name(), p.sku() + " has " + p.stock() + " units left (threshold "
-                                + p.threshold() + ")", ts(LocalDateTime.now().minusHours(1 + rnd.nextInt(30))));
+                                + p.threshold() + ")", p.sku(), p.name(), p.stock(), p.threshold(),
+                        ts(LocalDateTime.now().minusHours(1 + rnd.nextInt(30))));
             }
         }
         jdbc.update("""

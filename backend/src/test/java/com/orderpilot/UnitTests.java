@@ -115,6 +115,41 @@ class UnitTests {
     }
 
     @Nested
+    class AiConfiguration {
+        private boolean enabledFor(String key) {
+            var env = new org.springframework.mock.env.MockEnvironment();
+            if (key != null) {
+                env.setProperty("AI_API_KEY", key);
+            }
+            new com.orderpilot.ai.AiKeyEnvironmentPostProcessor().postProcessEnvironment(env, null);
+            return env.getProperty("orderpilot.ai.enabled", Boolean.class);
+        }
+
+        @Test
+        void llmModeOnlyWithANonBlankKey() {
+            assertThat(enabledFor(null)).isFalse();
+            assertThat(enabledFor("   ")).isFalse();
+            assertThat(enabledFor("sk-test-not-real")).isTrue();
+        }
+
+        @Test
+        void blankKeyGetsAPlaceholderSoSpringAiCanStart() {
+            var env = new org.springframework.mock.env.MockEnvironment().withProperty("AI_API_KEY", "");
+            new com.orderpilot.ai.AiKeyEnvironmentPostProcessor().postProcessEnvironment(env, null);
+            assertThat(env.getProperty("spring.ai.openai.api-key")).isEqualTo("not-configured");
+        }
+
+        @Test
+        void errorLogsNeverContainTheKey() throws Exception {
+            Method redact = com.orderpilot.ai.AssistantService.class.getDeclaredMethod("redact", Throwable.class);
+            redact.setAccessible(true);
+            String out = (String) redact.invoke(null,
+                    new IllegalStateException("401 Unauthorized: invalid key sk-abc123DEF456ghi789 provided"));
+            assertThat(out).doesNotContain("sk-abc123DEF456ghi789").contains("sk-***");
+        }
+    }
+
+    @Nested
     class TenantContextScoping {
         @Test
         void callAsRestoresPreviousTenant() {

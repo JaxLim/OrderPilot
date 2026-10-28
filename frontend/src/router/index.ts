@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '@/stores/auth'
+import { lang, t } from '@/i18n'
+import { watch } from 'vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -11,15 +13,15 @@ const router = createRouter({
       component: () => import('@/layouts/AppLayout.vue'),
       children: [
         { path: '', redirect: '/dashboard' },
-        { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { title: 'Dashboard', perm: 'report:read' } },
-        { path: 'orders', name: 'orders', component: () => import('@/views/OrdersView.vue'), meta: { title: 'Orders', perm: 'order:read' } },
-        { path: 'products', name: 'products', component: () => import('@/views/ProductsView.vue'), meta: { title: 'Products', perm: 'product:read' } },
-        { path: 'inventory', name: 'inventory', component: () => import('@/views/InventoryView.vue'), meta: { title: 'Inventory', perm: 'inventory:read' } },
-        { path: 'payments', name: 'payments', component: () => import('@/views/PaymentsView.vue'), meta: { title: 'Payments', perm: 'order:read' } },
-        { path: 'assistant', name: 'assistant', component: () => import('@/views/AssistantView.vue'), meta: { title: 'AI Copilot', perm: 'ai:use' } },
-        { path: 'team', name: 'team', component: () => import('@/views/TeamView.vue'), meta: { title: 'Team', perm: 'user:manage' } },
-        { path: 'activity', name: 'activity', component: () => import('@/views/ActivityView.vue'), meta: { title: 'Activity', perm: 'audit:read' } },
-        { path: 'forbidden', name: 'forbidden', component: () => import('@/views/ForbiddenView.vue'), meta: { title: 'No access' } },
+        { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { title: 'nav.dashboard', perm: 'report:read' } },
+        { path: 'orders', name: 'orders', component: () => import('@/views/OrdersView.vue'), meta: { title: 'nav.orders', perm: 'order:read' } },
+        { path: 'products', name: 'products', component: () => import('@/views/ProductsView.vue'), meta: { title: 'nav.products', perm: 'product:read' } },
+        { path: 'inventory', name: 'inventory', component: () => import('@/views/InventoryView.vue'), meta: { title: 'nav.inventory', perm: 'inventory:read' } },
+        { path: 'payments', name: 'payments', component: () => import('@/views/PaymentsView.vue'), meta: { title: 'nav.payments', perm: 'order:read' } },
+        { path: 'assistant', name: 'assistant', component: () => import('@/views/AssistantView.vue'), meta: { title: 'nav.assistant', perm: 'ai:use' } },
+        { path: 'team', name: 'team', component: () => import('@/views/TeamView.vue'), meta: { title: 'nav.team', perm: 'user:manage' } },
+        { path: 'activity', name: 'activity', component: () => import('@/views/ActivityView.vue'), meta: { title: 'nav.activity', perm: 'audit:read' } },
+        { path: 'forbidden', name: 'forbidden', component: () => import('@/views/ForbiddenView.vue'), meta: { title: 'nav.forbidden' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
@@ -48,8 +50,11 @@ router.beforeEach(async (to) => {
   return true
 })
 
-router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title} · OrderPilot` : 'OrderPilot'
-})
+function setTitle() {
+  const key = router.currentRoute.value.meta.title as string | undefined
+  document.title = key ? `${t(key)} · OrderPilot` : 'OrderPilot'
+}
+router.afterEach(setTitle)
+watch(lang, setTitle)
 
 export default router

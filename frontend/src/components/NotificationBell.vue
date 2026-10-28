@@ -4,6 +4,11 @@ import { Bell } from '@element-plus/icons-vue'
 import { api } from '@/api/http'
 import type { Notification } from '@/api/types'
 import { fmtRelative } from '@/utils/format'
+import { notificationText } from '@/utils/notifications'
+import { lang } from '@/i18n'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const unread = ref(0)
 const items = ref<Notification[]>([])
@@ -48,21 +53,21 @@ onUnmounted(() => window.clearInterval(timer))
       </el-badge>
     </template>
     <div class="head">
-      <strong>Notifications</strong>
-      <el-button link type="primary" size="small" :disabled="unread === 0" @click="readAll">Mark all read</el-button>
+      <strong>{{ t('notif.title') }}</strong>
+      <el-button link type="primary" size="small" :disabled="unread === 0" @click="readAll">{{ t('notif.markAll') }}</el-button>
     </div>
     <el-scrollbar max-height="420px">
-      <div v-if="!items.length" class="empty">You're all caught up.</div>
+      <div v-if="!items.length" class="empty">{{ t('notif.empty') }}</div>
       <div v-for="n in items" :key="n.id" class="item" :class="{ unread: !n.readFlag }" @click="read(n)">
         <span class="dot" :style="{ background: dot[n.level] }" />
         <div class="body">
-          <div class="title">{{ n.title }}</div>
-          <div v-if="n.content" class="text">{{ n.content }}</div>
+          <div class="title">{{ notificationText(n, lang).title }}</div>
+          <div v-if="notificationText(n, lang).content" class="text">{{ notificationText(n, lang).content }}</div>
           <div class="time">{{ fmtRelative(n.createdAt) }}</div>
         </div>
       </div>
     </el-scrollbar>
-    <div class="foot muted">Delivered asynchronously via RabbitMQ</div>
+    <div class="foot muted">{{ t('notif.footer') }}</div>
   </el-popover>
 </template>
 

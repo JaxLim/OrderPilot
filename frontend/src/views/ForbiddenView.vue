@@ -1,9 +1,14 @@
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+</script>
+
 <template>
   <div class="page">
-    <el-result icon="warning" title="You don't have access to this page"
-               sub-title="Ask a workspace admin to change your role if you need it.">
+    <el-result icon="warning" :title="t('forbidden.title')" :sub-title="t('forbidden.subtitle')">
       <template #extra>
-        <router-link to="/orders"><el-button type="primary">Go to orders</el-button></router-link>
+        <router-link to="/orders"><el-button type="primary">{{ t('forbidden.back') }}</el-button></router-link>
       </template>
     </el-result>
   </div>

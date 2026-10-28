@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuth } from '@/stores/auth'
 import { ApiError } from '@/api/http'
+import LangSwitch from '@/components/LangSwitch.vue'
 
+const { t } = useI18n()
 const auth = useAuth()
 const router = useRouter()
 const route = useRoute()
@@ -12,11 +15,11 @@ const loading = ref(false)
 const error = ref('')
 
 const demoAccounts = [
-  { email: 'admin@acme.test', role: 'Admin', tenant: 'Acme Outdoor' },
-  { email: 'manager@acme.test', role: 'Manager', tenant: 'Acme Outdoor' },
-  { email: 'staff@acme.test', role: 'Staff', tenant: 'Acme Outdoor' },
-  { email: 'viewer@acme.test', role: 'Viewer', tenant: 'Acme Outdoor' },
-  { email: 'admin@nova.test', role: 'Admin', tenant: 'Nova Electronics' },
+  { email: 'admin@acme.test', role: 'ADMIN' },
+  { email: 'manager@acme.test', role: 'MANAGER' },
+  { email: 'staff@acme.test', role: 'STAFF' },
+  { email: 'viewer@acme.test', role: 'VIEWER' },
+  { email: 'admin@nova.test', role: 'ADMIN', tenant: 'Nova' },
 ]
 
 async function submit() {
@@ -35,191 +38,152 @@ async function submit() {
 function pick(email: string) {
   form.email = email
   form.password = 'Passw0rd!'
+  error.value = ''
 }
 </script>
 
 <template>
-  <div class="auth">
-    <section class="hero">
-      <div class="brand"><img src="/favicon.svg" width="34" height="34" alt="" /> OrderPilot</div>
-      <h1>Orders, inventory and payments for growing commerce teams.</h1>
-      <ul>
-        <li><b>Oversell-proof stock</b> — atomic reservations under heavy concurrency</li>
-        <li><b>Exactly-once effects</b> — idempotent APIs and an outbox-driven event pipeline</li>
-        <li><b>Secure multi-tenancy</b> — every workspace is isolated by design</li>
-        <li><b>AI Copilot</b> — ask questions about your live business data</li>
-      </ul>
-      <div class="foot">Java 21 · Spring Boot · MySQL · Redis · RabbitMQ · Vue 3</div>
-    </section>
+  <div class="screen">
+    <div class="corner"><LangSwitch /></div>
 
-    <section class="panel">
-      <div class="box">
-        <h2>Sign in</h2>
-        <p class="muted">Welcome back. Use a demo account or your own workspace.</p>
-        <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="err" />
-        <el-form label-position="top" @submit.prevent="submit">
-          <el-form-item label="Email">
-            <el-input v-model="form.email" size="large" autocomplete="username" data-testid="login-email" />
-          </el-form-item>
-          <el-form-item label="Password">
-            <el-input v-model="form.password" type="password" size="large" show-password autocomplete="current-password"
-                      data-testid="login-password" />
-          </el-form-item>
-          <el-button type="primary" size="large" native-type="submit" :loading="loading" class="w100"
-                     data-testid="login-submit">Sign in</el-button>
-        </el-form>
-        <div class="demo">
-          <div class="demo-title">Demo accounts <span class="muted">(password Passw0rd!)</span></div>
-          <div class="chips">
-            <button v-for="a in demoAccounts" :key="a.email" type="button" class="chip" @click="pick(a.email)">
-              <b>{{ a.role }}</b><span>{{ a.tenant }}</span>
-            </button>
-          </div>
-        </div>
-        <p class="muted small">New here? <router-link to="/register">Create a workspace</router-link></p>
+    <div class="card box">
+      <div class="brand">
+        <img src="/favicon.svg" width="40" height="40" alt="" />
+        <span>OrderPilot</span>
       </div>
-    </section>
+      <p class="welcome">{{ t('auth.signInSubtitle') }}</p>
+
+      <el-form label-position="top" class="form" @submit.prevent="submit">
+        <el-form-item :label="t('auth.email')">
+          <el-input v-model="form.email" size="large" autocomplete="username" data-testid="login-email" />
+        </el-form-item>
+        <el-form-item :label="t('auth.password')">
+          <el-input v-model="form.password" type="password" size="large" show-password autocomplete="current-password"
+                    data-testid="login-password" />
+        </el-form-item>
+        <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon class="err" />
+        <el-button type="primary" size="large" native-type="submit" :loading="loading" class="submit"
+                   data-testid="login-submit">{{ t('auth.signIn') }}</el-button>
+      </el-form>
+
+      <div class="divider"><span>{{ t('auth.demo') }}</span></div>
+      <div class="chips">
+        <button v-for="a in demoAccounts" :key="a.email" type="button" class="chip"
+                :class="{ on: form.email === a.email }" :title="a.email" @click="pick(a.email)">
+          {{ a.tenant ? `${a.tenant} · ` : '' }}{{ t(`roles.${a.role}`) }}
+        </button>
+      </div>
+    </div>
+
+    <p class="foot">
+      {{ t('auth.noAccount') }} <router-link to="/register">{{ t('auth.createWorkspace') }}</router-link>
+    </p>
   </div>
 </template>
 
 <style scoped>
-.auth {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
+.screen {
   min-height: 100%;
-}
-
-.hero {
-  background: radial-gradient(circle at 20% 20%, #4338ca 0, #1e1b4b 55%, #0f172a 100%);
-  color: #e0e7ff;
-  padding: 56px 64px;
   display: flex;
   flex-direction: column;
-}
-
-.brand {
-  display: flex;
   align-items: center;
-  gap: 12px;
-  font-weight: 700;
-  font-size: 20px;
-  color: #fff;
+  justify-content: center;
+  padding: 48px 16px;
+  background:
+    radial-gradient(900px 500px at 50% -10%, #e0e7ff 0%, transparent 70%),
+    var(--op-bg);
 }
 
-.hero h1 {
-  font-size: 34px;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  color: #fff;
-  margin: auto 0 28px;
-  max-width: 520px;
-}
-
-.hero ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 auto;
-  display: grid;
-  gap: 14px;
-  font-size: 15px;
-  max-width: 520px;
-}
-
-.hero li b {
-  color: #fff;
-}
-
-.foot {
-  font-size: 12.5px;
-  color: #a5b4fc;
-  margin-top: 40px;
-}
-
-.panel {
-  display: grid;
-  place-items: center;
-  padding: 40px;
-  background: #fff;
+.corner {
+  position: fixed;
+  top: 18px;
+  right: 20px;
 }
 
 .box {
   width: 100%;
-  max-width: 400px;
+  max-width: 380px;
+  padding: 36px 32px 28px;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
 }
 
-.box h2 {
-  margin: 0;
-  font-size: 26px;
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-size: 22px;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
-.box > p {
-  margin: 6px 0 24px;
+.welcome {
+  text-align: center;
+  color: var(--op-muted);
+  margin: 6px 0 26px;
+  font-size: 14px;
+}
+
+.form :deep(.el-form-item__label) {
+  font-weight: 500;
 }
 
 .err {
-  margin-bottom: 16px;
+  margin: -4px 0 14px;
 }
 
-.w100 {
+.submit {
   width: 100%;
+  margin-top: 4px;
 }
 
-.demo {
-  margin-top: 26px;
-  padding: 14px;
-  border: 1px dashed var(--op-border);
-  border-radius: 10px;
-  background: #fafbff;
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 24px 0 12px;
+  color: var(--op-subtle);
+  font-size: 12px;
 }
 
-.demo-title {
-  font-size: 12.5px;
-  font-weight: 600;
-  margin-bottom: 10px;
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--op-border);
 }
 
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
 }
 
 .chip {
+  font: inherit;
+  font-size: 12.5px;
   border: 1px solid var(--op-border);
   background: #fff;
-  border-radius: 8px;
-  padding: 6px 10px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  font: inherit;
-  font-size: 12px;
-  transition: border-color 0.15s;
-}
-
-.chip:hover {
-  border-color: var(--op-primary);
-}
-
-.chip span {
   color: var(--op-muted);
-  font-size: 11px;
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.small {
-  font-size: 13px;
-  margin-top: 18px;
+.chip:hover,
+.chip.on {
+  border-color: var(--op-primary);
+  color: var(--op-primary);
+  background: var(--op-primary-soft);
 }
 
-@media (max-width: 900px) {
-  .auth {
-    grid-template-columns: 1fr;
-  }
-
-  .hero {
-    display: none;
-  }
+.foot {
+  margin-top: 20px;
+  font-size: 13.5px;
+  color: var(--op-muted);
 }
 </style>

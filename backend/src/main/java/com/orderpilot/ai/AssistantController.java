@@ -5,7 +5,6 @@ import com.orderpilot.ai.AssistantService.ChatRequest;
 import com.orderpilot.common.api.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import java.util.Map;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,8 +25,8 @@ public class AssistantController {
     }
 
     @GetMapping("/status")
-    public ApiResponse<Map<String, Object>> status() {
-        return ApiResponse.ok(Map.of("mode", assistantService.llmConfigured() ? "llm" : "offline"));
+    public ApiResponse<AssistantService.AiStatus> status() {
+        return ApiResponse.ok(assistantService.status());
     }
 
     @PostMapping("/chat")

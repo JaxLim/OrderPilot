@@ -146,6 +146,19 @@ The system prompt requires tools for every figure; tools are the only data sourc
 Tools are read-only and their tenant id is injected server-side, so prompt injection can neither write data nor reach another
 tenant. History is capped, requests are rate-limited per user, and failures fall back to a deterministic analyst.
 
+**Q: How do you handle the LLM API key?**
+Environment variable only (`AI_API_KEY`), sourced from a git-ignored `.env` locally and from the orchestrator's secret store in
+production. It's never in source or YAML, never sent to the browser (the UI asks `/api/ai/status`, which returns only
+mode/provider/model), and never logged (provider errors pass through a regex redactor; there's a unit test for it). Tests pin
+`AI_API_KEY=` so CI can't spend money or leak the key. Next step in production: a secret manager (Vault / AWS Secrets Manager)
+and key rotation.
+
+**Q: How did you add Chinese support?**
+vue-i18n with typed message catalogs (`zh: typeof en`, so missing translations fail the build), Element Plus and dayjs locales
+switched together, and error localisation by stable error code rather than translating server strings. Notifications keep
+structured params so they render in the reader's language. The AI gets the UI language and answers in it; the offline analyst
+has Chinese templates.
+
 **Q: What would you add for production?**
 Streaming responses (SSE), conversation persistence, evaluation set of business questions with expected tool calls,
 token/cost metrics, RAG over product docs, a confirm-before-execute pattern for any future write tools.

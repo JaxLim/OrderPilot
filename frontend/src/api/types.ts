@@ -151,6 +151,7 @@ export interface Notification {
   level: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR'
   title: string
   content?: string
+  params?: string
   readFlag: boolean
   createdAt: string
 }
@@ -186,6 +187,12 @@ export interface OutboxEvent {
   lastError?: string
   createdAt: string
   sentAt?: string
+}
+
+export interface AiStatus {
+  mode: 'llm' | 'offline'
+  provider?: string
+  model?: string
 }
 
 export interface ChatReply {

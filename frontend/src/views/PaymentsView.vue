@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api, notifyError } from '@/api/http'
 import type { Page, Payment } from '@/api/types'
 import OrderDrawer from '@/components/OrderDrawer.vue'
-import { fmtDateTime, fmtMoney, PAYMENT_METHODS } from '@/utils/format'
+import { fmtDateTime, fmtMoney, methodLabel } from '@/utils/format'
 
+const { t } = useI18n()
 const rows = ref<Payment[]>([])
 const total = ref(0)
 const loading = ref(false)
 const selected = ref<number | null>(null)
 const q = reactive({ status: '', page: 1, size: 20 })
-const methodLabel = Object.fromEntries(PAYMENT_METHODS.map((m) => [m.value, m.label]))
 const tag: Record<string, string> = { SUCCEEDED: 'success', FAILED: 'danger', REFUNDED: 'warning', PENDING: 'info' }
+const statusOptions = computed(() => [
+  { label: t('common.all'), value: '' },
+  ...['SUCCEEDED', 'FAILED', 'REFUNDED'].map((s) => ({ label: t(`payStatus.${s}`), value: s })),
+])
 
 async function load() {
   loading.value = true
@@ -33,40 +38,39 @@ watch(() => [q.status, q.page], load)
   <div class="page">
     <div class="page-header">
       <div>
-        <h1>Payments</h1>
-        <p>Simulated gateway. Charges run outside DB transactions; outcomes are applied with compare-and-set.</p>
+        <h1>{{ t('payments.title') }}</h1>
+        <p>{{ t('payments.subtitle') }}</p>
       </div>
     </div>
     <div class="card">
       <div class="toolbar">
-        <el-segmented v-model="q.status" :options="[{ label: 'All', value: '' }, { label: 'Succeeded', value: 'SUCCEEDED' },
-          { label: 'Failed', value: 'FAILED' }, { label: 'Refunded', value: 'REFUNDED' }]" />
+        <el-segmented v-model="q.status" :options="statusOptions" />
         <span class="spacer" />
-        <span class="muted">{{ total }} payments</span>
+        <span class="muted">{{ t('payments.count', { n: total }) }}</span>
       </div>
       <el-table :data="rows" v-loading="loading" class="el-table--clickable" @row-click="(r: Payment) => (selected = r.orderId)">
-        <el-table-column label="Payment" min-width="200">
+        <el-table-column :label="t('payments.colPayment')" min-width="200">
           <template #default="{ row }"><span class="mono">{{ row.paymentNo }}</span></template>
         </el-table-column>
-        <el-table-column label="Order" min-width="190">
+        <el-table-column :label="t('payments.colOrder')" min-width="190">
           <template #default="{ row }"><span class="mono muted">{{ row.orderNo }}</span></template>
         </el-table-column>
-        <el-table-column label="Method" width="140">
-          <template #default="{ row }">{{ methodLabel[row.method] ?? row.method }}</template>
+        <el-table-column :label="t('payments.colMethod')" width="140">
+          <template #default="{ row }">{{ methodLabel(row.method) }}</template>
         </el-table-column>
-        <el-table-column label="Status" width="130">
-          <template #default="{ row }"><el-tag :type="(tag[row.status] as any)" effect="light">{{ row.status }}</el-tag></template>
+        <el-table-column :label="t('payments.colStatus')" width="130">
+          <template #default="{ row }"><el-tag :type="(tag[row.status] as any)" effect="light">{{ t(`payStatus.${row.status}`) }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="Amount" width="120" align="right">
+        <el-table-column :label="t('payments.colAmount')" width="120" align="right">
           <template #default="{ row }"><b class="num">{{ fmtMoney(row.amount) }}</b></template>
         </el-table-column>
-        <el-table-column label="Provider ref / reason" min-width="220">
+        <el-table-column :label="t('payments.colRef')" min-width="220">
           <template #default="{ row }">
             <span v-if="row.failureReason" class="muted">{{ row.failureReason }}</span>
             <span v-else class="mono muted">{{ row.providerTxnId }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Created" width="170">
+        <el-table-column :label="t('payments.colCreated')" width="180">
           <template #default="{ row }"><span class="muted">{{ fmtDateTime(row.createdAt) }}</span></template>
         </el-table-column>
       </el-table>

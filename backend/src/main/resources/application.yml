@@ -5,6 +5,9 @@ server:
 spring:
   application:
     name: orderpilot
+  autoconfigure:
+    # JWT-only authentication: no in-memory default user
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3307}/${MYSQL_DB:orderpilot}?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true&useSSL=false
     username: ${MYSQL_USER:orderpilot}

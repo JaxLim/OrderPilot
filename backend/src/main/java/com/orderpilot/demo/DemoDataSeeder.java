@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Seeds two realistic tenants on an empty database: 45 days of order history, payments, stock
+ * Seeds two realistic tenants on an empty database: 75 days of order history, payments, stock
  * levels (some deliberately low), notifications and audit entries. Runs once — it is skipped when
  * the {@code acme} tenant already exists. Disable with {@code DEMO_SEED=false}.
  */
@@ -111,8 +111,8 @@ public class DemoDataSeeder implements ApplicationRunner {
         }
         long start = System.currentTimeMillis();
         tx.executeWithoutResult(s -> {
-            seedTenant("acme", "Acme Outdoor Co.", "GROWTH", "acme.test", ACME, 45, 9, 15);
-            seedTenant("nova", "Nova Electronics", "STARTER", "nova.test", NOVA, 45, 2, 5);
+            seedTenant("acme", "Acme Outdoor Co.", "GROWTH", "acme.test", ACME, 75, 8, 14);
+            seedTenant("nova", "Nova Electronics", "STARTER", "nova.test", NOVA, 75, 2, 5);
         });
         log.info("Demo data seeded in {} ms (login: admin@acme.test / {})", System.currentTimeMillis() - start,
                 DEMO_PASSWORD);

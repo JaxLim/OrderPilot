@@ -62,6 +62,7 @@ manual checks recorded below.
 | DeepSeek live check | `/api/ai/status` → `llm / DeepSeek / deepseek-chat`; English and Chinese questions answered with tool calls on real data | works |
 | Key leak checks | `sk-` in backend logs: 0; in served/built frontend and nginx container: 0; in Git-tracked files: 0; `git check-ignore .env` ✓ | clean |
 | Manual UI check | new login page, Chinese dashboard/orders/drawer/AI copilot screenshots (docs/screenshots/*-zh.png) | works |
+| GitHub Actions CI (backend, frontend, E2E) | push of `eee1015` to `main` (2026-10-28) | **passed** |
 
 ## Known issues / limitations
 
@@ -70,7 +71,6 @@ manual checks recorded below.
 - The E2E AI test only asserts that an answer with tool provenance appears (LLM wording is non-deterministic).
 - LLM answers can still be imperfect (e.g. phrasing); the prompt lists the real screens to stop it inventing features.
 - First `docker compose up --build` downloads all Maven dependencies inside the build container (~12 min on this network).
-- GitHub Actions workflow is written but has **not been run on GitHub** (no remote configured).
 - Payment gateway is simulated; no reconciliation job for PENDING payments stuck by a crash between TX1 and TX2.
 - Demo-seeded historical orders are inserted directly (no outbox events, no per-order ledger rows).
 - Business data (product/customer names, audit details, payment failure reasons) is not translated.
@@ -79,7 +79,7 @@ manual checks recorded below.
 
 ## Exact next steps
 
-1. Rotate the DeepSeek key and update `.env`; push to GitHub and confirm CI (no key needed: tests force offline mode).
+1. Rotate the DeepSeek key and update `.env`.
 2. Add a `@SpringBootTest` with a stubbed `ChatModel` asserting that tool calls and the `lang` instruction are sent.
 3. Stream copilot answers (SSE) for faster perceived latency; persist conversations.
 4. Reconciliation job for `payment.status = 'PENDING'` older than N minutes.

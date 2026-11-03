@@ -140,7 +140,7 @@ export default {
   },
   orderDrawer: {
     title: 'Order {no}',
-    autoCancel: 'Awaiting payment — auto-cancels {time} if unpaid',
+    autoCancel: 'Awaiting payment: cancels automatically {time} if still unpaid',
     collect: 'Collect payment',
     simulated: '(simulated gateway)',
     simulateDecline: 'Simulate decline',
@@ -177,8 +177,8 @@ export default {
     tlPaid: 'Payment captured',
     tlShipped: 'Shipped',
     tlCompleted: 'Delivered & completed',
-    tlCancelled: 'Cancelled — {reason}',
-    tlRefunded: 'Refunded — {reason}',
+    tlCancelled: 'Cancelled: {reason}',
+    tlRefunded: 'Refunded: {reason}',
   },
   products: {
     title: 'Products',
@@ -221,7 +221,7 @@ export default {
   },
   inventory: {
     title: 'Inventory',
-    subtitle: 'Available can be sold now · Reserved is held by unpaid orders · every change is ledgered.',
+    subtitle: 'Available can be sold now · Reserved is held by unpaid orders · every change is recorded in the ledger.',
     levels: 'Stock levels',
     ledger: 'Movement ledger',
     lowOnly: 'Low stock only',
@@ -276,7 +276,7 @@ export default {
   },
   ai: {
     title: 'AI Copilot',
-    subtitle: "Ask about {tenant}'s live data. Read-only, tenant-scoped tools — every number comes from the database.",
+    subtitle: "Ask about {tenant}'s live data. The tools are read-only and tenant-scoped, so every number comes from the database.",
     llmMode: '{provider} · {model}',
     offlineMode: 'Offline analyst',
     llmTip: 'Spring AI function calling via {provider}. The API key stays on the server.',

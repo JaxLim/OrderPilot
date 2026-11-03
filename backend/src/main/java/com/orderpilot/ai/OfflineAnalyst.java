@@ -93,7 +93,7 @@ class OfflineAnalyst {
 
     private static String overview(T t, SalesSummary s, List<LowStockItem> low, Map<String, Long> statuses) {
         StringBuilder sb = new StringBuilder();
-        sb.append(t.s("### Business overview — last " + s.days() + " days\n\n", "### 经营概况 — 最近 " + s.days() + " 天\n\n"));
+        sb.append(t.s("### Business overview — last " + s.days() + " days\n\n", "### 经营概况（最近 " + s.days() + " 天）\n\n"));
         sb.append(t.s("| Metric | Value |\n|---|---|\n", "| 指标 | 数值 |\n|---|---|\n"));
         sb.append("| ").append(t.s("Revenue", "营收")).append(" | ").append(money(s.revenue())).append(change(t, s.revenueChangePct())).append(" |\n");
         sb.append("| ").append(t.s("Orders (paid / total)", "订单（已支付 / 全部）")).append(" | ").append(s.paidOrders()).append(" / ").append(s.totalOrders()).append(" |\n");
@@ -144,7 +144,7 @@ class OfflineAnalyst {
         }
         StringBuilder sb = new StringBuilder(t.s(
                 "### Top products — last " + days + " days\n\n| # | Product | Units | Revenue |\n|---|---|---|---|\n",
-                "### 热销商品 — 最近 " + days + " 天\n\n| # | 商品 | 件数 | 销售额 |\n|---|---|---|---|\n"));
+                "### 热销商品（最近 " + days + " 天）\n\n| # | 商品 | 件数 | 销售额 |\n|---|---|---|---|\n"));
         int rank = 1;
         for (ProductSales p : items) {
             sb.append("| ").append(rank++).append(" | ").append(p.getProductName()).append(" (").append(p.getSku())
@@ -160,7 +160,7 @@ class OfflineAnalyst {
         long total = counts.values().stream().mapToLong(Long::longValue).sum();
         StringBuilder sb = new StringBuilder(t.s(
                 "### Orders by status — last " + days + " days\n\n| Status | Orders | Share |\n|---|---|---|\n",
-                "### 订单状态分布 — 最近 " + days + " 天\n\n| 状态 | 订单数 | 占比 |\n|---|---|---|\n"));
+                "### 订单状态分布（最近 " + days + " 天）\n\n| 状态 | 订单数 | 占比 |\n|---|---|---|\n"));
         counts.entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed()).forEach(e ->
                 sb.append("| ").append(t.status(e.getKey())).append(" | ").append(e.getValue()).append(" | ")
                         .append(Math.round(e.getValue() * 100.0 / total)).append("% |\n"));
@@ -178,7 +178,7 @@ class OfflineAnalyst {
                         + "- Total: **" + money(total) + "** across " + points.size() + " trading days\n"
                         + "- Best day: **" + best.getDay() + "** with " + money(best.getRevenue()) + " (" + best.getOrders() + " orders)\n"
                         + "- Slowest day: **" + worst.getDay() + "** with " + money(worst.getRevenue()) + "\n",
-                "### 营收趋势 — 最近 " + days + " 天\n\n"
+                "### 营收趋势（最近 " + days + " 天）\n\n"
                         + "- 合计：**" + money(total) + "**，共 " + points.size() + " 个营业日\n"
                         + "- 最佳一天：**" + best.getDay() + "**，营收 " + money(best.getRevenue()) + "（" + best.getOrders() + " 笔订单）\n"
                         + "- 最淡一天：**" + worst.getDay() + "**，营收 " + money(worst.getRevenue()) + "\n");

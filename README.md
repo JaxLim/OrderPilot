@@ -1,130 +1,167 @@
+**简体中文** | [English](README.en.md)
+
 # OrderPilot
 
-**Multi-tenant order & inventory SaaS** — a modular-monolith Spring Boot backend, a Vue 3 dashboard and an AI business copilot.
-The product is small but the hard parts are real: oversell-proof stock under concurrency, idempotent APIs, a transactional outbox
-with reliable RabbitMQ delivery, delayed order cancellation, Redis caching, and tenant isolation enforced at three layers.
+OrderPilot 是一个多租户的订单与库存管理 SaaS，包含 Spring Boot 模块化单体后端、Vue 3 管理后台和一个 AI 经营助手。
 
-![Dashboard](docs/screenshots/dashboard.png)
+业务规模不大，但工程上的难点都按生产标准处理：高并发下库存不超卖、重复提交不重复下单、MySQL 与 RabbitMQ 之间的可靠消息、未支付订单准时自动取消、Redis 缓存，以及在三个层面强制执行的租户隔离。AI 助手只通过只读、限定租户的工具读取真实数据，不会编造数字。
 
-## Highlights
+![数据看板](docs/screenshots/dashboard-zh.png)
 
-| Problem | How OrderPilot solves it | Proof |
-|---|---|---|
-| Overselling under concurrency | Single conditional `UPDATE … WHERE available >= qty` (atomic check-and-decrement), lines locked in product-id order to avoid deadlocks | `InventoryConcurrencyIT` — 40 concurrent buyers, 10 units → exactly 10 orders |
-| Duplicate submits / retries | `Idempotency-Key` header → Redis `SET NX` claim + replayable response; `UNIQUE(tenant_id, idempotency_key)` as last line of defence | `IdempotencyIT` — 15 concurrent duplicates → 1 order |
-| MySQL ↔ RabbitMQ dual-write | Transactional outbox (`Propagation.MANDATORY`), relay with publisher confirms + mandatory returns, retries with back-off, `FOR UPDATE SKIP LOCKED` | `OrderLifecycleIT.domainEventsFlowThroughOutboxToNotifications` |
-| At-least-once delivery | Idempotent consumers (`consumed_message` de-dup row in the same TX), listener retry → DLQ | same test asserts no duplicate notifications |
-| Unpaid orders holding stock | RabbitMQ TTL + dead-letter delay queue cancels exactly at expiry; scheduled sweeper as safety net; both use a CAS on status | `OrderLifecycleIT.unpaidOrderIsCancelledByTheRabbitMqDelayQueue` |
-| Pay vs. timeout race | Payment in 3 steps (TX1 lock + PENDING row → gateway call outside TX → TX2 CAS); money captured for an expired order is auto-refunded | `PaymentService` |
-| Tenant data leaks | Tenant from signed JWT only → `TenantContext`; every SQL filters `tenant_id`; a MyBatis interceptor **rejects** any statement on a tenant table without `tenant_id` | `SecurityAndTenancyIT`, `UnitTests.TenantGuard` |
-| Hot catalog reads | Redis cache-aside with TTL jitter, null-sentinel (penetration), delete-after-commit invalidation, graceful degradation; stock is never cached | `ProductCache` |
-| AI that doesn't hallucinate numbers | Spring AI `ChatClient` with read-only, server-side tenant-bound `@Tool`s; deterministic offline analyst when no key is configured | `OrderLifecycleIT.dashboardAndAssistantReflectRealData`, Playwright |
+## 当前状态
 
-<table><tr>
-<td><img src="docs/screenshots/login.png" alt="Sign in"/></td>
-<td><img src="docs/screenshots/orders-zh.png" alt="订单详情（中文界面）"/></td>
-<td><img src="docs/screenshots/assistant-zh.png" alt="AI 助手（DeepSeek）"/></td>
-</tr><tr>
-<td><img src="docs/screenshots/orders.png" alt="Orders with detail drawer"/></td>
-<td><img src="docs/screenshots/inventory.png" alt="Inventory levels"/></td>
-<td><img src="docs/screenshots/assistant.png" alt="AI Copilot"/></td>
-</tr></table>
+V1 功能完整，可以端到端运行：后端、中英双语前端、AI 助手、演示数据、自动化测试、Docker Compose 部署和 GitHub Actions CI 均已完成，[CI 在 GitHub 上运行通过](https://github.com/JaxLim/OrderPilot/actions)。
 
-## Tech stack
+尚未实现或有意简化的部分：
 
-- **Backend:** Java 21, Spring Boot 3.5, Spring Security (JWT, method security), MyBatis, MySQL 8.4 + Flyway, Redis 7, RabbitMQ 3, Spring AI 1.1 + DeepSeek (OpenAI-compatible), springdoc OpenAPI
-- **Frontend:** Vue 3 + TypeScript, Vite, Element Plus, Pinia, Vue Router, vue-i18n (English / 简体中文), ECharts
-- **Testing:** JUnit 5 + Testcontainers (real MySQL/Redis/RabbitMQ), Playwright E2E
-- **DevOps:** Docker multi-stage builds, Docker Compose, nginx, GitHub Actions
+- 支付网关是模拟的；若进程恰好在支付两个事务之间崩溃，目前没有对账任务处理遗留的 `PENDING` 支付。
+- 通知使用 10 秒轮询，尚未改为 SSE；AI 回答不是流式输出，对话也不持久化。
+- 演示数据中的历史订单直接写入数据库，不经过 Outbox，也没有逐单的库存流水。
+- 商品名、客户名、审计详情等业务数据不做翻译，只翻译界面。
 
-## Quick start (Docker — everything)
+完整清单见 [PROJECT_STATUS.md](PROJECT_STATUS.md)（英文）。
+
+## 界面截图
+
+| 登录 | 订单详情 | AI 助手（DeepSeek） |
+| --- | --- | --- |
+| ![登录页](docs/screenshots/login.png) | ![订单列表与详情抽屉](docs/screenshots/orders-zh.png) | ![AI 助手](docs/screenshots/assistant-zh.png) |
+
+## 核心问题与实现
+
+| 问题 | 做法 | 验证 |
+| --- | --- | --- |
+| 并发超卖 | 单条条件更新 `UPDATE … WHERE available >= qty` 原子地检查并扣减；多行按商品 ID 顺序加锁，避免死锁 | `InventoryConcurrencyIT`：40 个并发买家抢 10 件，恰好 10 单成功 |
+| 重复提交与重试 | `Idempotency-Key` 请求头 → Redis `SET NX` 占位并可重放响应；数据库 `UNIQUE(tenant_id, idempotency_key)` 兜底 | `IdempotencyIT`：15 个并发重复请求只生成 1 单 |
+| MySQL 与 RabbitMQ 双写 | 事务型 Outbox（`Propagation.MANDATORY`）；中继使用发布确认和 mandatory 退回、带退避的重试、`FOR UPDATE SKIP LOCKED` | `OrderLifecycleIT` |
+| 至少一次投递 | 幂等消费者（同一事务内写去重记录），监听器重试后进入死信队列 | 同上，断言不产生重复通知 |
+| 未支付订单占用库存 | RabbitMQ TTL + 死信延迟队列到期即取消；定时扫描作为兜底；两者都用状态 CAS | `OrderLifecycleIT` |
+| 支付与超时竞争 | 支付分三步：事务 1 加锁并写 PENDING → 事务外调用网关 → 事务 2 CAS；已过期订单收到的款项自动退款 | `PaymentService` |
+| 租户数据泄露 | 租户只来自签名 JWT；所有 SQL 按 `tenant_id` 过滤；MyBatis 拦截器**拒绝**任何未带 `tenant_id` 的租户表语句 | `SecurityAndTenancyIT`、`UnitTests` |
+| 热点商品读取 | Redis 旁路缓存：TTL 抖动、空值哨兵防穿透、提交后删除缓存、Redis 故障时降级；库存数量不缓存 | `ProductCache` |
+| AI 编造数据 | Spring AI `ChatClient` 加 7 个只读、在服务端绑定租户的 `@Tool`；未配置密钥时使用确定性的离线分析模式 | `OrderLifecycleIT`、Playwright |
+
+## 技术栈
+
+- **后端**：Java 21、Spring Boot 3.5、Spring Security（JWT、方法级权限）、MyBatis、MySQL 8.4 + Flyway、Redis 7、RabbitMQ 3、Spring AI 1.1（DeepSeek，OpenAI 兼容接口）、springdoc OpenAPI
+- **前端**：Vue 3 + TypeScript、Vite、Element Plus、Pinia、Vue Router、vue-i18n（English / 简体中文）、ECharts
+- **测试**：JUnit 5 + Testcontainers（真实的 MySQL / Redis / RabbitMQ）、Playwright 端到端测试
+- **部署**：Docker 多阶段构建、Docker Compose、nginx、GitHub Actions
+
+### 架构
+
+后端是一个可独立部署的模块化单体，按业务能力拆分：
+
+```
+backend/src/main/java/com/orderpilot/
+  common/        统一响应、错误码、TenantContext 与租户拦截器、幂等
+  iam/           JWT 登录、角色与权限、用户、租户
+  catalog/       商品 + Redis 旁路缓存
+  inventory/     原子预占库存、库存流水
+  order/         订单状态机、超时取消（消息队列 + 定时扫描）
+  payment/       模拟支付网关、三步支付、退款
+  messaging/     事务型 Outbox、中继、RabbitMQ 拓扑、消费去重
+  notification/  事件消费 → 站内通知
+  analytics/     看板读模型（Redis 缓存）
+  ai/            Spring AI 助手、工具、离线分析
+  audit/         操作日志
+  demo/          演示数据生成
+frontend/        Vue 3 管理后台 + Playwright 测试
+docs/            ARCHITECTURE.md、INTERVIEW_GUIDE.md、截图
+```
+
+模块之间通过服务方法调用，副作用以领域事件的形式经 Outbox 发布到 RabbitMQ。详细设计见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)（英文）。
+
+## 快速开始（Docker）
+
+只需安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)（或 Docker Engine + Compose 插件）。
 
 ```bash
+git clone https://github.com/JaxLim/OrderPilot.git
+cd OrderPilot
 docker compose up -d --build --wait
 ```
 
-Open **http://localhost:8081** and sign in with a demo account (password `Passw0rd!`):
+首次构建需要在容器中下载 Maven 依赖，可能需要十几分钟。全部容器健康后打开 **http://localhost:8081**，用下面任一演示账号登录，密码均为 `Passw0rd!`：
 
-| Email | Role | Workspace |
-|---|---|---|
-| `admin@acme.test` | Admin | Acme Outdoor Co. (24 products, ~75 days of orders) |
-| `manager@acme.test` | Manager | Acme Outdoor Co. |
-| `staff@acme.test` | Staff | Acme Outdoor Co. |
-| `viewer@acme.test` | Viewer (read-only) | Acme Outdoor Co. |
-| `admin@nova.test` | Admin | Nova Electronics (separate tenant) |
+| 邮箱 | 角色 | 工作区 |
+| --- | --- | --- |
+| `admin@acme.test` | 管理员 | Acme Outdoor Co.（约 75 天的订单数据） |
+| `manager@acme.test` | 经理 | Acme Outdoor Co. |
+| `staff@acme.test` | 员工 | Acme Outdoor Co. |
+| `viewer@acme.test` | 只读 | Acme Outdoor Co. |
+| `admin@nova.test` | 管理员 | Nova Electronics（另一个租户） |
 
-Other endpoints: API `http://localhost:8080/api`, Swagger UI `http://localhost:8080/swagger-ui.html`,
-RabbitMQ console `http://localhost:15672` (guest/guest).
+界面右上角和登录页都有 **EN / 中文** 切换，选择会保存在浏览器中。
 
-The UI is available in **English and 简体中文**. Switch with the EN / 中文 toggle (login page and top bar); the choice is
-remembered per browser.
+其他地址：
 
-### AI copilot (DeepSeek)
+- API：http://localhost:8080/api
+- Swagger UI：http://localhost:8080/swagger-ui.html
+- RabbitMQ 控制台：http://localhost:15672 （guest / guest）
 
-The copilot uses DeepSeek through Spring AI's OpenAI-compatible client. Configure it with environment variables — never in
-source or config files:
+停止：`docker compose down`；连同数据一起删除：`docker compose down -v`。
 
-```bash
-cp .env.example .env          # .env is git-ignored
-# edit .env and set AI_API_KEY=<your DeepSeek key>
-docker compose up -d --build  # Compose reads .env and passes the key to the backend container only
-```
+## 配置 AI 助手（可选）
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `AI_API_KEY` | *(empty)* | DeepSeek API key. Empty → offline analyst mode |
-| `AI_BASE_URL` | `https://api.deepseek.com` | Any OpenAI-compatible endpoint |
-| `AI_MODEL` | `deepseek-chat` | Model name |
-| `AI_PROVIDER_NAME` | `DeepSeek` | Label shown in the UI |
-
-How the key is protected:
-
-- Only the backend reads it. The browser calls `/api/ai/chat`, and `/api/ai/status` returns just the mode, provider and model.
-- It's never committed: `.env` / `.env.*` are git-ignored (only `.env.example` with placeholders is tracked) and excluded from
-  Docker build contexts.
-- It's never logged: the startup log prints the provider and model only, and provider errors are logged through a redactor
-  that masks `sk-…` tokens (unit-tested).
-- Tests force `AI_API_KEY=` so CI and `mvn test` never call the real API.
-
-Without a key the copilot runs in **offline analyst** mode: same tools, same real data, deterministic answers in English or
-Chinese.
-
-## Local development
-
-Prerequisites: JDK 21, Maven 3.9, Node 22+, Docker.
+不配置密钥时，AI 助手以**离线分析模式**运行：使用同样的工具和真实数据，给出确定性的中英文回答。若要接入 DeepSeek（或任何 OpenAI 兼容接口）：
 
 ```bash
-docker compose up -d mysql redis rabbitmq        # infra (MySQL on :3307)
-cd backend && mvn spring-boot:run                # API on :8080, seeds demo data; reads AI_* from ../.env
-cd frontend && npm install && npm run dev        # UI on :5173 (proxies /api to :8080)
+cp .env.example .env
+# 编辑 .env，填写 AI_API_KEY
+docker compose up -d --build
 ```
 
-## Tests
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `AI_API_KEY` | 空 | API 密钥；为空时使用离线分析模式 |
+| `AI_BASE_URL` | `https://api.deepseek.com` | 任意 OpenAI 兼容接口地址 |
+| `AI_MODEL` | `deepseek-chat` | 模型名称 |
+| `AI_PROVIDER_NAME` | `DeepSeek` | 界面上显示的服务商名称 |
+| `JWT_SECRET` | Compose 内置演示值 | JWT 签名密钥，正式使用时请改为至少 32 位的随机字符串 |
+
+密钥只由后端读取：浏览器只调用 `/api/ai/chat`，`/api/ai/status` 只返回模式、服务商和模型名。`.env` 已被 Git 和 Docker 构建上下文忽略；日志中的 `sk-…` 会被脱敏；测试强制清空 `AI_API_KEY`，CI 不会调用真实接口。
+
+## 本地开发
+
+需要：JDK 21、Maven 3.9、Node.js 22 或更高版本、Docker（用于运行中间件）。
 
 ```bash
-cd backend && mvn verify                         # 31 tests: unit + Testcontainers integration (needs Docker)
-cd frontend && npx playwright install chromium && npm run e2e   # 6 E2E tests against a running stack
-E2E_BASE_URL=http://localhost:8081 npm run e2e   # ...or against the Docker stack
+# 1. 启动 MySQL（端口 3307）、Redis、RabbitMQ
+docker compose up -d mysql redis rabbitmq
+
+# 2. 启动后端：http://localhost:8080 ，首次启动会写入演示数据，并读取 ../.env 中的 AI_* 配置
+cd backend
+mvn spring-boot:run
+
+# 3. 另开一个终端启动前端：http://localhost:5173 ，/api 请求代理到 8080
+cd frontend
+npm install
+npm run dev
 ```
 
-## Project layout
+## 测试
 
-```
-backend/   Spring Boot modular monolith
-  common/      api envelope, errors, TenantContext + TenantGuardInterceptor, idempotency
-  iam/         JWT auth, roles → permissions, users, tenants
-  catalog/     products + Redis cache-aside
-  inventory/   atomic stock reservation, movement ledger
-  order/       order state machine, timeout handlers (MQ + sweeper)
-  payment/     simulated gateway, 3-step payment, refunds
-  messaging/   transactional outbox, relay, RabbitMQ topology, consumer de-dup
-  notification/ event consumer → in-app notifications
-  analytics/   dashboard read models (Redis-cached)
-  ai/          Spring AI copilot, tools, offline analyst
-  audit/       activity trail
-  demo/        realistic demo data seeder
-frontend/  Vue 3 SaaS dashboard + Playwright tests
-docs/      ARCHITECTURE.md, INTERVIEW_GUIDE.md, screenshots
+```bash
+# 后端：31 个单元与集成测试；Testcontainers 会启动真实的 MySQL / Redis / RabbitMQ，需要 Docker
+cd backend
+mvn verify
+
+# 前端：类型检查与生产构建
+cd frontend
+npm run build
+
+# 端到端：6 个 Playwright 测试，需先启动完整服务
+cd frontend
+npx playwright install chromium
+npm run e2e                                    # 针对 http://localhost:5173
+E2E_BASE_URL=http://localhost:8081 npm run e2e # 针对 Docker 部署
 ```
 
-More: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/INTERVIEW_GUIDE.md](docs/INTERVIEW_GUIDE.md) · [PROJECT_STATUS.md](PROJECT_STATUS.md)
+GitHub Actions（`.github/workflows/ci.yml`）在推送到 `main` 和每个 PR 时运行三个任务：后端 `mvn verify`、前端构建，以及基于 Docker Compose 的 Playwright 端到端测试。
+
+## 更多文档
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)：架构与关键设计（英文）
+- [docs/INTERVIEW_GUIDE.md](docs/INTERVIEW_GUIDE.md)：项目讲解与常见深挖问题（英文）
+- [PROJECT_STATUS.md](PROJECT_STATUS.md)：已完成功能、测试记录、已知问题与后续计划（英文）

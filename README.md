@@ -2,22 +2,22 @@
 
 # OrderPilot
 
-OrderPilot 是一个多租户的订单与库存管理 SaaS，包含 Spring Boot 模块化单体后端、Vue 3 管理后台和一个 AI 经营助手。
+OrderPilot 是一个多租户的订单与库存管理 SaaS，由 Spring Boot 模块化单体后端、Vue 3 管理后台和一个 AI 经营助手组成。
 
-业务规模不大，但工程上的难点都按生产标准处理：高并发下库存不超卖、重复提交不重复下单、MySQL 与 RabbitMQ 之间的可靠消息、未支付订单准时自动取消、Redis 缓存，以及在三个层面强制执行的租户隔离。AI 助手只通过只读、限定租户的工具读取真实数据，不会编造数字。
+业务规模不大，但工程上的难点都按生产环境的标准来做：高并发下不超卖、重复提交不会重复下单、MySQL 和 RabbitMQ 之间消息不丢、未付款订单到点自动取消、Redis 缓存，以及从三个层面把关的租户隔离。AI 助手只能通过只读、限定租户的工具查数据，不会编造数字。
 
 ![数据看板](docs/screenshots/dashboard-zh.png)
 
 ## 当前状态
 
-V1 功能完整，可以端到端运行：后端、中英双语前端、AI 助手、演示数据、自动化测试、Docker Compose 部署和 GitHub Actions CI 均已完成，[CI 在 GitHub 上运行通过](https://github.com/JaxLim/OrderPilot/actions)。
+V1 的功能已经齐全，整条链路都能跑通：后端、中英双语前端、AI 助手、演示数据、自动化测试、Docker Compose 部署和 GitHub Actions CI 都已完成，[CI 在 GitHub 上运行通过](https://github.com/JaxLim/OrderPilot/actions)。
 
-尚未实现或有意简化的部分：
+还没做或有意简化的部分：
 
-- 支付网关是模拟的；若进程恰好在支付两个事务之间崩溃，目前没有对账任务处理遗留的 `PENDING` 支付。
-- 通知使用 10 秒轮询，尚未改为 SSE；AI 回答不是流式输出，对话也不持久化。
-- 演示数据中的历史订单直接写入数据库，不经过 Outbox，也没有逐单的库存流水。
-- 商品名、客户名、审计详情等业务数据不做翻译，只翻译界面。
+- 支付网关是模拟的；如果进程恰好在支付的两个事务之间崩溃，留下的 `PENDING` 支付目前没有对账任务来处理。
+- 通知靠每 10 秒轮询一次，还没换成 SSE；AI 回答不是流式输出，对话记录也不会保存。
+- 演示数据里的历史订单是直接写进数据库的，不经过 Outbox，也没有逐单的库存流水。
+- 只翻译界面文字，商品名、客户名、审计详情等业务数据不翻译。
 
 完整清单见 [PROJECT_STATUS.md](PROJECT_STATUS.md)（英文）。
 
@@ -29,17 +29,17 @@ V1 功能完整，可以端到端运行：后端、中英双语前端、AI 助�
 
 ## 核心问题与实现
 
-| 问题 | 做法 | 验证 |
+| 问题 | 解法 | 验证 |
 | --- | --- | --- |
-| 并发超卖 | 单条条件更新 `UPDATE … WHERE available >= qty` 原子地检查并扣减；多行按商品 ID 顺序加锁，避免死锁 | `InventoryConcurrencyIT`：40 个并发买家抢 10 件，恰好 10 单成功 |
-| 重复提交与重试 | `Idempotency-Key` 请求头 → Redis `SET NX` 占位并可重放响应；数据库 `UNIQUE(tenant_id, idempotency_key)` 兜底 | `IdempotencyIT`：15 个并发重复请求只生成 1 单 |
-| MySQL 与 RabbitMQ 双写 | 事务型 Outbox（`Propagation.MANDATORY`）；中继使用发布确认和 mandatory 退回、带退避的重试、`FOR UPDATE SKIP LOCKED` | `OrderLifecycleIT` |
-| 至少一次投递 | 幂等消费者（同一事务内写去重记录），监听器重试后进入死信队列 | 同上，断言不产生重复通知 |
-| 未支付订单占用库存 | RabbitMQ TTL + 死信延迟队列到期即取消；定时扫描作为兜底；两者都用状态 CAS | `OrderLifecycleIT` |
-| 支付与超时竞争 | 支付分三步：事务 1 加锁并写 PENDING → 事务外调用网关 → 事务 2 CAS；已过期订单收到的款项自动退款 | `PaymentService` |
-| 租户数据泄露 | 租户只来自签名 JWT；所有 SQL 按 `tenant_id` 过滤；MyBatis 拦截器**拒绝**任何未带 `tenant_id` 的租户表语句 | `SecurityAndTenancyIT`、`UnitTests` |
-| 热点商品读取 | Redis 旁路缓存：TTL 抖动、空值哨兵防穿透、提交后删除缓存、Redis 故障时降级；库存数量不缓存 | `ProductCache` |
-| AI 编造数据 | Spring AI `ChatClient` 加 7 个只读、在服务端绑定租户的 `@Tool`；未配置密钥时使用确定性的离线分析模式 | `OrderLifecycleIT`、Playwright |
+| 并发超卖 | 用一条条件更新 `UPDATE … WHERE available >= qty` 原子地完成检查和扣减；多个商品按 ID 顺序加锁，避免死锁 | `InventoryConcurrencyIT`：40 个并发买家抢 10 件，恰好 10 单成功 |
+| 重复提交与重试 | 请求带 `Idempotency-Key`，Redis `SET NX` 占位并缓存响应，重复请求直接返回原结果；数据库 `UNIQUE(tenant_id, idempotency_key)` 兜底 | `IdempotencyIT`：15 个并发重复请求只生成 1 单 |
+| MySQL 与 RabbitMQ 双写 | 事务型 Outbox（`Propagation.MANDATORY`）；中继进程使用发布确认和 mandatory 退回，失败按退避策略重试，并用 `FOR UPDATE SKIP LOCKED` 认领 | `OrderLifecycleIT` |
+| 至少一次投递 | 幂等消费者（在同一事务里写去重记录），监听器重试失败后进入死信队列 | 同上，断言不产生重复通知 |
+| 未付款订单占着库存 | RabbitMQ TTL + 死信延迟队列到点即取消，定时扫描兜底；两条路径都对状态做 CAS | `OrderLifecycleIT` |
+| 支付和超时撞车 | 支付分三步：事务 1 加锁并写入 PENDING → 在事务外调用网关 → 事务 2 做 CAS；钱打进已过期的订单会自动退款 | `PaymentService` |
+| 租户数据泄露 | 租户只从签名 JWT 中取；所有 SQL 都按 `tenant_id` 过滤；MyBatis 拦截器会**拒绝**任何没带 `tenant_id` 的租户表语句 | `SecurityAndTenancyIT`、`UnitTests` |
+| 热门商品频繁读取 | Redis 旁路缓存：TTL 加随机抖动、空值占位防穿透、事务提交后再删缓存、Redis 故障时自动降级；库存数量不进缓存 | `ProductCache` |
+| AI 编造数据 | Spring AI `ChatClient` 配 7 个只读 `@Tool`，租户在服务端绑定；没配密钥时改用结果固定的离线分析模式 | `OrderLifecycleIT`、Playwright |
 
 ## 技术栈
 
@@ -70,7 +70,7 @@ frontend/        Vue 3 管理后台 + Playwright 测试
 docs/            ARCHITECTURE.md、INTERVIEW_GUIDE.md、截图
 ```
 
-模块之间通过服务方法调用，副作用以领域事件的形式经 Outbox 发布到 RabbitMQ。详细设计见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)（英文）。
+模块之间直接调用服务方法，副作用则变成领域事件，经 Outbox 发布到 RabbitMQ。详细设计见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)（英文）。
 
 ## 快速开始（Docker）
 
@@ -82,7 +82,7 @@ cd OrderPilot
 docker compose up -d --build --wait
 ```
 
-首次构建需要在容器中下载 Maven 依赖，可能需要十几分钟。全部容器健康后打开 **http://localhost:8081**，用下面任一演示账号登录，密码均为 `Passw0rd!`：
+第一次构建要在容器里下载 Maven 依赖，可能要十几分钟。所有容器都健康后，打开 **http://localhost:8081**，用下面任一演示账号登录，密码均为 `Passw0rd!`：
 
 | 邮箱 | 角色 | 工作区 |
 | --- | --- | --- |
@@ -92,7 +92,7 @@ docker compose up -d --build --wait
 | `viewer@acme.test` | 只读 | Acme Outdoor Co. |
 | `admin@nova.test` | 管理员 | Nova Electronics（另一个租户） |
 
-界面右上角和登录页都有 **EN / 中文** 切换，选择会保存在浏览器中。
+登录页和界面右上角都有 **EN / 中文** 切换按钮，选择会保存在浏览器里。
 
 其他地址：
 
@@ -104,7 +104,7 @@ docker compose up -d --build --wait
 
 ## 配置 AI 助手（可选）
 
-不配置密钥时，AI 助手以**离线分析模式**运行：使用同样的工具和真实数据，给出确定性的中英文回答。若要接入 DeepSeek（或任何 OpenAI 兼容接口）：
+不配置密钥时，AI 助手以**离线分析模式**运行：用的是同一套工具和真实数据，回答内容固定，支持中英文。要接入 DeepSeek（或任何 OpenAI 兼容接口）：
 
 ```bash
 cp .env.example .env
@@ -118,9 +118,9 @@ docker compose up -d --build
 | `AI_BASE_URL` | `https://api.deepseek.com` | 任意 OpenAI 兼容接口地址 |
 | `AI_MODEL` | `deepseek-chat` | 模型名称 |
 | `AI_PROVIDER_NAME` | `DeepSeek` | 界面上显示的服务商名称 |
-| `JWT_SECRET` | Compose 内置演示值 | JWT 签名密钥，正式使用时请改为至少 32 位的随机字符串 |
+| `JWT_SECRET` | Compose 内置的演示值 | JWT 签名密钥，正式使用时请换成至少 32 位的随机字符串 |
 
-密钥只由后端读取：浏览器只调用 `/api/ai/chat`，`/api/ai/status` 只返回模式、服务商和模型名。`.env` 已被 Git 和 Docker 构建上下文忽略；日志中的 `sk-…` 会被脱敏；测试强制清空 `AI_API_KEY`，CI 不会调用真实接口。
+密钥只有后端会读取：浏览器只调用 `/api/ai/chat`，`/api/ai/status` 也只返回模式、服务商和模型名。`.env` 不会进入 Git，也不会被打包进 Docker 镜像；日志里的 `sk-…` 会被打码；测试会强制清空 `AI_API_KEY`，CI 不会调用真实接口。
 
 ## 本地开发
 

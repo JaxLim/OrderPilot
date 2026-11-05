@@ -102,6 +102,8 @@ Other endpoints:
 
 Stop with `docker compose down`, or `docker compose down -v` to delete the data as well.
 
+Compose is a local demo: it turns on the `demo` profile, which seeds these accounts and enables Swagger UI and the metrics endpoint. Never expose it to the internet. See [SECURITY.md](SECURITY.md) for production settings.
+
 ## Configure the AI copilot (optional)
 
 Without a key, the copilot runs in **offline analyst** mode: the same tools and the same real data, with deterministic answers in English or Chinese. To use DeepSeek (or any OpenAI-compatible API):
@@ -118,7 +120,7 @@ docker compose up -d --build
 | `AI_BASE_URL` | `https://api.deepseek.com` | Any OpenAI-compatible endpoint |
 | `AI_MODEL` | `deepseek-chat` | Model name |
 | `AI_PROVIDER_NAME` | `DeepSeek` | Provider label shown in the UI |
-| `JWT_SECRET` | a demo value in Compose | JWT signing key; use a random string of at least 32 characters for real use |
+| `JWT_SECRET` | empty | JWT signing key of at least 32 bytes, for example from `openssl rand -hex 32`. When empty, the backend uses a random key and sessions end at restart. The `prod` profile requires it |
 
 Only the backend reads the key: the browser calls `/api/ai/chat`, and `/api/ai/status` returns only the mode, provider and model. `.env` is ignored by Git and excluded from Docker build contexts, `sk-…` tokens are masked in logs, and tests force an empty `AI_API_KEY` so CI never calls the real API.
 
@@ -130,7 +132,7 @@ Prerequisites: JDK 21, Maven 3.9, Node.js 22 or newer, and Docker (for the infra
 # 1. Start MySQL (port 3307), Redis and RabbitMQ
 docker compose up -d mysql redis rabbitmq
 
-# 2. Start the backend on http://localhost:8080; it seeds demo data on first start and reads AI_* from ../.env
+# 2. Start the backend on http://localhost:8080 with the demo profile; it seeds demo data on first start and reads AI_* from ../.env
 cd backend
 mvn spring-boot:run
 
@@ -143,7 +145,7 @@ npm run dev
 ## Tests
 
 ```bash
-# Backend: 31 unit and integration tests; Testcontainers starts real MySQL / Redis / RabbitMQ, so Docker is required
+# Backend: 38 unit and integration tests; Testcontainers starts real MySQL / Redis / RabbitMQ, so Docker is required
 cd backend
 mvn verify
 
@@ -158,7 +160,7 @@ npm run e2e                                    # against http://localhost:5173
 E2E_BASE_URL=http://localhost:8081 npm run e2e # against the Docker stack
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) runs three jobs on pushes to `main` and on every pull request: backend `mvn verify`, the frontend build, and Playwright end-to-end tests against Docker Compose.
+GitHub Actions (`.github/workflows/ci.yml`) runs three jobs on pushes to `main` and on every pull request: backend `mvn verify`, the frontend build, and Playwright end-to-end tests against Docker Compose. `.github/workflows/security.yml` adds gitleaks, CodeQL and Trivy scans, and Dependabot proposes dependency updates.
 
 ## More documentation
 

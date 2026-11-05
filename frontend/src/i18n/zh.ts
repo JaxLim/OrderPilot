@@ -39,7 +39,6 @@ const zh: typeof en = {
     email: '邮箱',
     password: '密码',
     demo: '演示账号',
-    demoHint: '密码 Passw0rd!',
     noAccount: '还没有账号？',
     createWorkspace: '创建工作区',
     registerTitle: '创建你的工作区',

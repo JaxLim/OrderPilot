@@ -15,4 +15,6 @@ COPY --from=build /src/target/orderpilot.jar app.jar
 USER app
 EXPOSE 8080
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -Duser.timezone=UTC"
+# Strict by default: ProductionConfigGuard stops the container on default secrets. Compose overrides this for the demo.
+ENV SPRING_PROFILES_ACTIVE=prod
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

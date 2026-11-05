@@ -1,0 +1,17 @@
+# Local development and the Docker Compose demo only. Never activate this on an internet-facing deployment:
+# it creates accounts with a password published in this repository.
+orderpilot:
+  demo:
+    seed: ${DEMO_SEED:true}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

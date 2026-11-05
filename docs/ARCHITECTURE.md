@@ -131,6 +131,11 @@ Stock is deliberately **not** cached: it changes on every order and must be exac
 - RBAC: roles map to permissions (`order:write`, `payment:refund`, …); endpoints use `@PreAuthorize("hasAuthority(...)")`,
   never role names. The UI hides what you cannot do, but the server is the authority.
 - A workspace cannot remove its last active admin.
+- Secure by default: there is no default JWT secret, and demo data, Swagger UI and the metrics endpoint are off unless the
+  `demo` profile turns them on (`mvn spring-boot:run` and Compose do). A blank `JWT_SECRET` gets a random per-process key.
+- The backend image runs the `prod` profile. `ProductionConfigGuard` stops startup, before any connection or migration, on a
+  missing or placeholder `JWT_SECRET`, default MySQL or RabbitMQ passwords, or demo data. Demo credentials reach the
+  frontend bundle only with `VITE_DEMO_MODE=true`.
 
 ## 9. AI copilot
 

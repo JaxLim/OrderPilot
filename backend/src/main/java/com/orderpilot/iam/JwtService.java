@@ -10,11 +10,15 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 import javax.crypto.SecretKey;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Service;
 
 @Service
 public class JwtService {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtService.class);
 
     @ConfigurationProperties("orderpilot.jwt")
     public record JwtProperties(String secret, Duration ttl) {
@@ -30,12 +34,21 @@ public class JwtService {
     private final Duration ttl;
 
     public JwtService(JwtProperties props) {
-        byte[] bytes = props.secret().getBytes(StandardCharsets.UTF_8);
+        this.key = signingKey(props.secret());
+        this.ttl = props.ttl();
+    }
+
+    /** A blank secret gets a random per-process key, so no build ever signs with a key known from the source. */
+    private static SecretKey signingKey(String secret) {
+        if (secret == null || secret.isBlank()) {
+            log.warn("JWT_SECRET is not set: using a random key. Tokens end at restart and do not work across instances.");
+            return Jwts.SIG.HS384.key().build();
+        }
+        byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
         if (bytes.length < 32) {
             throw new IllegalStateException("orderpilot.jwt.secret must be at least 32 bytes");
         }
-        this.key = Keys.hmacShaKeyFor(bytes);
-        this.ttl = props.ttl();
+        return Keys.hmacShaKeyFor(bytes);
     }
 
     public IssuedToken issue(AuthUser user) {

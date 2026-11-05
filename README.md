@@ -102,6 +102,8 @@ docker compose up -d --build --wait
 
 停止：`docker compose down`；连同数据一起删除：`docker compose down -v`。
 
+Compose 只用于本地演示：它会启用 `demo` 配置，写入上述账号，并打开 Swagger UI 和 metrics 端点。切勿将其暴露到公网。生产环境配置见 [SECURITY.md](SECURITY.md)。
+
 ## 配置 AI 助手（可选）
 
 不配置密钥时，AI 助手以**离线分析模式**运行：用的是同一套工具和真实数据，回答内容固定，支持中英文。要接入 DeepSeek（或任何 OpenAI 兼容接口）：
@@ -118,7 +120,7 @@ docker compose up -d --build
 | `AI_BASE_URL` | `https://api.deepseek.com` | 任意 OpenAI 兼容接口地址 |
 | `AI_MODEL` | `deepseek-chat` | 模型名称 |
 | `AI_PROVIDER_NAME` | `DeepSeek` | 界面上显示的服务商名称 |
-| `JWT_SECRET` | Compose 内置的演示值 | JWT 签名密钥，正式使用时请换成至少 32 位的随机字符串 |
+| `JWT_SECRET` | 空 | JWT 签名密钥，至少 32 字节，可用 `openssl rand -hex 32` 生成。为空时后端使用随机密钥，重启后会话失效；`prod` 配置下必须设置 |
 
 密钥只有后端会读取：浏览器只调用 `/api/ai/chat`，`/api/ai/status` 也只返回模式、服务商和模型名。`.env` 不会进入 Git，也不会被打包进 Docker 镜像；日志里的 `sk-…` 会被打码；测试会强制清空 `AI_API_KEY`，CI 不会调用真实接口。
 
@@ -130,7 +132,7 @@ docker compose up -d --build
 # 1. 启动 MySQL（端口 3307）、Redis、RabbitMQ
 docker compose up -d mysql redis rabbitmq
 
-# 2. 启动后端：http://localhost:8080 ，首次启动会写入演示数据，并读取 ../.env 中的 AI_* 配置
+# 2. 以 demo 配置启动后端：http://localhost:8080 ，首次启动会写入演示数据，并读取 ../.env 中的 AI_* 配置
 cd backend
 mvn spring-boot:run
 
@@ -143,7 +145,7 @@ npm run dev
 ## 测试
 
 ```bash
-# 后端：31 个单元与集成测试；Testcontainers 会启动真实的 MySQL / Redis / RabbitMQ，需要 Docker
+# 后端：38 个单元与集成测试；Testcontainers 会启动真实的 MySQL / Redis / RabbitMQ，需要 Docker
 cd backend
 mvn verify
 
@@ -158,7 +160,7 @@ npm run e2e                                    # 针对 http://localhost:5173
 E2E_BASE_URL=http://localhost:8081 npm run e2e # 针对 Docker 部署
 ```
 
-GitHub Actions（`.github/workflows/ci.yml`）在推送到 `main` 和每个 PR 时运行三个任务：后端 `mvn verify`、前端构建，以及基于 Docker Compose 的 Playwright 端到端测试。
+GitHub Actions（`.github/workflows/ci.yml`）在推送到 `main` 和每个 PR 时运行三个任务：后端 `mvn verify`、前端构建，以及基于 Docker Compose 的 Playwright 端到端测试。`.github/workflows/security.yml` 另外运行 gitleaks、CodeQL 和 Trivy 扫描，Dependabot 会提交依赖更新。
 
 ## 更多文档
 

@@ -1,1 +1,3 @@
-org.springframework.boot.env.EnvironmentPostProcessor=com.orderpilot.ai.AiKeyEnvironmentPostProcessor
+org.springframework.boot.env.EnvironmentPostProcessor=\
+  com.orderpilot.ai.AiKeyEnvironmentPostProcessor,\
+  com.orderpilot.common.config.ProductionConfigGuard

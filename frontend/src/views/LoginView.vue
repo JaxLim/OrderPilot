@@ -5,22 +5,15 @@ import { useI18n } from 'vue-i18n'
 import { useAuth } from '@/stores/auth'
 import { ApiError } from '@/api/http'
 import LangSwitch from '@/components/LangSwitch.vue'
+import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '@/utils/demo'
 
 const { t } = useI18n()
 const auth = useAuth()
 const router = useRouter()
 const route = useRoute()
-const form = reactive({ email: 'admin@acme.test', password: 'Passw0rd!' })
+const form = reactive({ email: DEMO_ACCOUNTS[0]?.email ?? '', password: DEMO_PASSWORD })
 const loading = ref(false)
 const error = ref('')
-
-const demoAccounts = [
-  { email: 'admin@acme.test', role: 'ADMIN' },
-  { email: 'manager@acme.test', role: 'MANAGER' },
-  { email: 'staff@acme.test', role: 'STAFF' },
-  { email: 'viewer@acme.test', role: 'VIEWER' },
-  { email: 'admin@nova.test', role: 'ADMIN', tenant: 'Nova' },
-]
 
 async function submit() {
   loading.value = true
@@ -37,7 +30,7 @@ async function submit() {
 
 function pick(email: string) {
   form.email = email
-  form.password = 'Passw0rd!'
+  form.password = DEMO_PASSWORD
   error.value = ''
 }
 </script>
@@ -66,13 +59,15 @@ function pick(email: string) {
                    data-testid="login-submit">{{ t('auth.signIn') }}</el-button>
       </el-form>
 
-      <div class="divider"><span>{{ t('auth.demo') }}</span></div>
-      <div class="chips">
-        <button v-for="a in demoAccounts" :key="a.email" type="button" class="chip"
-                :class="{ on: form.email === a.email }" :title="a.email" @click="pick(a.email)">
-          {{ a.tenant ? `${a.tenant} · ` : '' }}{{ t(`roles.${a.role}`) }}
-        </button>
-      </div>
+      <template v-if="DEMO_ACCOUNTS.length">
+        <div class="divider"><span>{{ t('auth.demo') }}</span></div>
+        <div class="chips">
+          <button v-for="a in DEMO_ACCOUNTS" :key="a.email" type="button" class="chip"
+                  :class="{ on: form.email === a.email }" :title="a.email" @click="pick(a.email)">
+            {{ a.tenant ? `${a.tenant} · ` : '' }}{{ t(`roles.${a.role}`) }}
+          </button>
+        </div>
+      </template>
     </div>
 
     <p class="foot">

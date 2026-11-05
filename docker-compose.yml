@@ -1,4 +1,4 @@
-# OrderPilot — full stack.
+# OrderPilot — local demo stack. Not a production deployment: it seeds accounts with a public password.
 #   Infra only (for local dev):  docker compose up -d mysql redis rabbitmq
 #   Everything:                  docker compose up -d --build
 name: orderpilot
@@ -48,7 +48,10 @@ services:
       MYSQL_PORT: 3306
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
-      JWT_SECRET: ${JWT_SECRET:-docker-compose-demo-secret-change-me-0123456789}
+      # The image defaults to the strict prod profile; this stack is the demo.
+      SPRING_PROFILES_ACTIVE: demo
+      # Optional. When empty the backend signs with a random key and sessions end at restart.
+      JWT_SECRET: ${JWT_SECRET:-}
       # Read from the git-ignored .env next to this file (or the shell). Only the backend receives the key;
       # the frontend container never does.
       AI_API_KEY: ${AI_API_KEY:-}
@@ -68,7 +71,10 @@ services:
       retries: 30
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_DEMO_MODE: "true"
     ports: ["8081:80"]
     depends_on:
       backend: { condition: service_healthy }

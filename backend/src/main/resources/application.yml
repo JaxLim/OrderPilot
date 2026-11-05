@@ -76,15 +76,20 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info
 
 springdoc:
+  # Off unless the demo profile turns them on: the API surface is not published in production.
+  api-docs:
+    enabled: false
   swagger-ui:
+    enabled: false
     path: /swagger-ui.html
 
 orderpilot:
   jwt:
-    secret: ${JWT_SECRET:change-me-in-production-0123456789abcdef0123456789abcdef}
+    # No default on purpose. JwtService uses a random key when this is blank; the prod profile refuses to start.
+    secret: ${JWT_SECRET:}
     ttl: 8h
   order:
     payment-timeout: ${ORDER_PAYMENT_TIMEOUT:15m}
@@ -98,7 +103,7 @@ orderpilot:
     provider: ${AI_PROVIDER_NAME:DeepSeek}
     model: ${AI_MODEL:deepseek-chat}
   demo:
-    seed: ${DEMO_SEED:true}
+    seed: ${DEMO_SEED:false}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:8081}
 

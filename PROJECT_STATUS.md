@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-_Last updated: 2026-10-28 (session 1, part 2: i18n, DeepSeek, login redesign)_
+_Last updated: 2026-11-05 (Phase 0 hardening, branch `chore/phase-0-hardening`)_
 
 ## Summary
 
@@ -63,6 +63,16 @@ manual checks recorded below.
 | Key leak checks | `sk-` in backend logs: 0; in served/built frontend and nginx container: 0; in Git-tracked files: 0; `git check-ignore .env` ✓ | clean |
 | Manual UI check | new login page, Chinese dashboard/orders/drawer/AI copilot screenshots (docs/screenshots/*-zh.png) | works |
 | GitHub Actions CI (backend, frontend, E2E) | push of `eee1015` to `main` (2026-10-28) | **passed** |
+
+## Phase 0 hardening (2026-11-05)
+
+- No default JWT secret; a blank value gets a random per-process key. `ProductionConfigGuard` blocks unsafe `prod` startup.
+- Demo data, Swagger UI and metrics need the new `demo` profile. The backend image defaults to `prod`; Compose and
+  `mvn spring-boot:run` use `demo`. Demo credentials are compiled out of the frontend unless `VITE_DEMO_MODE=true`.
+- Lockfile moved from `registry.npmmirror.com` to the npm registry. ECharts 6.1 and vue-i18n 11 clear all production
+  `npm audit` findings; 3 moderate findings remain in the build-only `vue-tsc` chain.
+- Added Dependabot, `SECURITY.md` and `.github/workflows/security.yml` (gitleaks, CodeQL, Trivy report-only).
+- Still needs the owner: rotate the DeepSeek key, protect `main`, choose a licence, enable private vulnerability reporting.
 
 ## Known issues / limitations
 

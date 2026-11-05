@@ -3,6 +3,7 @@ package com.orderpilot;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.orderpilot.common.config.ProductionConfigGuard;
 import com.orderpilot.common.tenant.TenantContext;
 import com.orderpilot.common.tenant.TenantGuardInterceptor;
 import com.orderpilot.iam.AuthUser;
@@ -16,6 +17,7 @@ import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 
 /** Fast tests without containers. */
 class UnitTests {
@@ -162,6 +164,84 @@ class UnitTests {
                 TenantContext.clear();
             }
             assertThat(TenantContext.get()).isNull();
+        }
+    }
+
+    @Nested
+    class ProductionGuard {
+        private static final String GOOD_SECRET = "9f3c1e7a5b2d4680ac17e93b6d08f25c41a7be90";
+
+        private MockEnvironment prod() {
+            MockEnvironment env = new MockEnvironment()
+                    .withProperty("orderpilot.jwt.secret", GOOD_SECRET)
+                    .withProperty("orderpilot.demo.seed", "false")
+                    .withProperty("spring.datasource.password", "db-password-from-secrets-manager")
+                    .withProperty("spring.rabbitmq.password", "mq-password-from-secrets-manager");
+            env.setActiveProfiles("prod");
+            return env;
+        }
+
+        private void guard(MockEnvironment env) {
+            new ProductionConfigGuard().postProcessEnvironment(env, null);
+        }
+
+        @Test
+        void acceptsRealConfiguration() {
+            guard(prod());
+        }
+
+        @Test
+        void ignoresOtherProfiles() {
+            MockEnvironment env = new MockEnvironment().withProperty("orderpilot.demo.seed", "true");
+            env.setActiveProfiles("demo");
+            guard(env);
+        }
+
+        @Test
+        void rejectsMissingWeakAndPlaceholderSecrets() {
+            for (String secret : List.of("", "short", "replace-with-at-least-32-random-characters",
+                    "change-me-in-production-0123456789abcdef0123456789abcdef",
+                    "docker-compose-demo-secret-change-me-0123456789")) {
+                assertThatThrownBy(() -> guard(prod().withProperty("orderpilot.jwt.secret", secret)))
+                        .isInstanceOf(IllegalStateException.class).hasMessageContaining("JWT_SECRET");
+            }
+        }
+
+        @Test
+        void rejectsDemoSeedAndDemoProfile() {
+            assertThatThrownBy(() -> guard(prod().withProperty("orderpilot.demo.seed", "true")))
+                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("DEMO_SEED");
+            MockEnvironment both = prod();
+            both.setActiveProfiles("prod", "demo");
+            assertThatThrownBy(() -> guard(both))
+                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("demo profile");
+        }
+
+        @Test
+        void rejectsDefaultInfrastructureCredentials() {
+            assertThatThrownBy(() -> guard(prod().withProperty("spring.datasource.password", "orderpilot")))
+                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("MYSQL_PASSWORD");
+            assertThatThrownBy(() -> guard(prod().withProperty("spring.rabbitmq.password", "guest")))
+                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("RABBITMQ_PASSWORD");
+        }
+
+        @Test
+        void neverPrintsTheRejectedValue() {
+            assertThatThrownBy(() -> guard(prod().withProperty("orderpilot.jwt.secret", "short-secret-value")))
+                    .hasMessageNotContaining("short-secret-value");
+        }
+    }
+
+    @Nested
+    class SigningKey {
+        @Test
+        void blankSecretGetsAKeyNobodyElseHolds() {
+            JwtService first = new JwtService(new JwtService.JwtProperties("", Duration.ofMinutes(5)));
+            JwtService second = new JwtService(new JwtService.JwtProperties(" ", Duration.ofMinutes(5)));
+            AuthUser user = new AuthUser(1L, 1L, "a@b.test", "A", Role.ADMIN);
+            String token = first.issue(user).token();
+            assertThat(first.parse(token).user().userId()).isEqualTo(1L);
+            assertThatThrownBy(() -> second.parse(token)).isInstanceOf(io.jsonwebtoken.JwtException.class);
         }
     }
 }

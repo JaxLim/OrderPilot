@@ -37,7 +37,6 @@ export default {
     email: 'Email',
     password: 'Password',
     demo: 'Demo accounts',
-    demoHint: 'password Passw0rd!',
     noAccount: 'New to OrderPilot?',
     createWorkspace: 'Create a workspace',
     registerTitle: 'Create your workspace',
